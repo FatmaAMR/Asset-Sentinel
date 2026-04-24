@@ -1,0 +1,102 @@
+[
+    {
+        "file_name": "FILE 1.csv",
+        "metrics": {
+            "vibration_rms": 1.0068391173968434,
+            "vibration_kurtosis": -0.5439269613173221,
+            "current_mean": 0.013747062593462549,
+            "peak_vibration": 1.0122074037903983
+        },
+        "report": "The motor is operating with an RMS vibration of 1.0068. Vibration distribution appears stable. Average current consumption is 0.0137A."
+    },
+    {
+        "file_name": "FILE 10.csv",
+        "metrics": {
+            "vibration_rms": 1.0007782753879766,
+            "vibration_kurtosis": -0.2984891850720688,
+            "current_mean": 0.008995330668049886,
+            "peak_vibration": 1.00122074037904
+        },
+        "report": "The motor is operating with an RMS vibration of 1.0008. Vibration distribution appears stable. Average current consumption is 0.0090A."
+    },
+    {
+        "file_name": "FILE 2.csv",
+        "metrics": {
+            "vibration_rms": 0.8950396229819133,
+            "vibration_kurtosis": -0.5856646069313047,
+            "current_mean": 0.3436765648365735,
+            "peak_vibration": 0.9319465254763616
+        },
+        "report": "The motor is operating with an RMS vibration of 0.8950. Vibration distribution appears stable. Average current consumption is 0.3437A."
+    },
+    {
+        "file_name": "FILE 3.csv",
+        "metrics": {
+            "vibration_rms": 0.9887004633530947,
+            "vibration_kurtosis": -0.2783481729120987,
+            "current_mean": 0.07439344462416422,
+            "peak_vibration": 1.0
+        },
+        "report": "The motor is operating with an RMS vibration of 0.9887. Vibration distribution appears stable. Average current consumption is 0.0744A."
+    },
+    {
+        "file_name": "FILE 4.csv",
+        "metrics": {
+            "vibration_rms": 0.9871922874980961,
+            "vibration_kurtosis": -1.8333333333334152,
+            "current_mean": 0.5667470320749537,
+            "peak_vibration": 0.9908443556007572
+        },
+        "report": "The motor is operating with an RMS vibration of 0.9872. Vibration distribution appears stable. Average current consumption is 0.5667A."
+    },
+    {
+        "file_name": "FILE 5.csv",
+        "metrics": {
+            "vibration_rms": 1.000527994282042,
+            "vibration_kurtosis": -0.7721029179546877,
+            "current_mean": 0.011069063386943866,
+            "peak_vibration": 1.00091555528428
+        },
+        "report": "The motor is operating with an RMS vibration of 1.0005. Vibration distribution appears stable. Average current consumption is 0.0111A."
+    },
+    {
+        "file_name": "FILE 6.csv",
+        "metrics": {
+            "vibration_rms": 1.0006105935842025,
+            "vibration_kurtosis": -0.5000000000003024,
+            "current_mean": 0.015449995422223148,
+            "peak_vibration": 1.0018311105685598
+        },
+        "report": "The motor is operating with an RMS vibration of 1.0006. Vibration distribution appears stable. Average current consumption is 0.0154A."
+    },
+    {
+        "file_name": "FILE 7.csv",
+        "metrics": {
+            "vibration_rms": 1.0333241198321508,
+            "vibration_kurtosis": -0.6607317952111296,
+            "current_mean": 0.14822382274849663,
+            "peak_vibration": 1.050864182459994
+        },
+        "report": "The motor is operating with an RMS vibration of 1.0333. Vibration distribution appears stable. Average current consumption is 0.1482A."
+    },
+    {
+        "file_name": "FILE 8.csv",
+        "metrics": {
+            "vibration_rms": 1.031904660374555,
+            "vibration_kurtosis": 0.0590702681288886,
+            "current_mean": 0.2107585375530258,
+            "peak_vibration": 1.0551028796380155
+        },
+        "report": "The motor is operating with an RMS vibration of 1.0319. Vibration distribution appears stable. Average current consumption is 0.2108A."
+    },
+    {
+        "file_name": "FILE 9.csv",
+        "metrics": {
+            "vibration_rms": 0.9905964033975019,
+            "vibration_kurtosis": -0.34231903877823555,
+            "current_mean": 0.94418698690756,
+            "peak_vibration": 1.0218864101077294
+        },
+        "report": "The motor is operating with an RMS vibration of 0.9906. Vibration distribution appears stable. Average current consumption is 0.9442A."
+    }
+]
