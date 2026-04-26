@@ -1,23 +1,28 @@
-
+version: "3.8"
 
 services:
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    hostname: rabbitmq                      # ← ADD THIS
+    image: rabbitmq:3-management
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
-      RABBITMQ_NODENAME: rabbit@GradProject   # ← ADD THIS
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
 
-volumes:
-  rabbitmq_data:
+  motor_dynamic:
+    build: .
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_URL=amqps://burraqtq:yFx0LDD76FrrDRFLhd2Wk_R68YfwhG00@cow.rmq2.cloudamqp.com/burraqtq
+    volumes:
+      - ./data:/app/data
+
+  forecasting-service:
+    build: ../forecasting-service
+    depends_on:
+      - rabbitmq
+      - motor_dynamic
+    environment:
+      - RABBITMQ_URL=amqps://burraqtq:yFx0LDD76FrrDRFLhd2Wk_R68YfwhG00@cow.rmq2.cloudamqp.com/burraqtq

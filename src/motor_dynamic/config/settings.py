@@ -1,56 +1,42 @@
 """
-Central config — all values come from environment variables or .env file.
-
-The ONLY value you should ever need to change is DATA_DIR.
-Everything else has sensible defaults.
+Configuration settings for motor_dynamic producer service.
 """
 
-from __future__ import annotations
-from typing import List
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+import os
+from dotenv import load_dotenv
+from pathlib import Path
 
 
-class Settings(BaseSettings):
-    # ── CHANGE THIS PATH ──────────────────────────────────────────────────────
-    DATA_DIR: str =r'C:\Users\user\Downloads\grad project'
+CURRENT_FILE = Path(__file__).resolve()
+ROOT_DIR = next(p for p in CURRENT_FILE.parents if p.name == "Asset-Sentinel")
+load_dotenv(dotenv_path=ROOT_DIR / ".env")
 
-    # ── RabbitMQ ──────────────────────────────────────────────────────────────
-    RABBITMQ_HOST:        str = "localhost"
-    RABBITMQ_PORT:        int = 5672
-    RABBITMQ_USER:        str = "guest"
-    RABBITMQ_PASSWORD:    str = "guest"
-    RABBITMQ_VHOST:       str = "/"
-    RABBITMQ_EXCHANGE:    str = "motor_data"
-    RABBITMQ_ROUTING_KEY: str = "raw"
-    RABBITMQ_QUEUE:       str = "motor.raw"
-    RABBITMQ_DLX_QUEUE:   str = "motor.failed"
 
-    # ── Publisher behaviour ───────────────────────────────────────────────────
-    WINDOW_SIZE: int = Field(default=1024, description="Samples per message window")
-    WINDOW_STEP: int = Field(default=1024, description="Hop between windows")
-    MAX_RETRIES: int = 3
+class Settings:
+    DATA_DIR = os.getenv(
+        "DATA_DIR",
+        str(ROOT_DIR / "src" / "raw"), 
+    )
+    print(f"Files inside raw folder: {os.listdir(DATA_DIR)}")
+    RABBITMQ_URL = os.getenv(
+        "RABBITMQ_URL",
+        "amqps://burraqtq:yFx0LDD76FrrDRFLhd2Wk_R68YfwhG00@cow.rmq2.cloudamqp.com/burraqtq"
+    )
+    RABBITMQ_EXCHANGE = os.getenv("RABBITMQ_EXCHANGE", "motor_exchange")
+    RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE", "motor.raw")
+    RABBITMQ_ROUTING_KEY = os.getenv("RABBITMQ_ROUTING_KEY", "motor.raw")
+    RABBITMQ_DLX_QUEUE = os.getenv("RABBITMQ_DLX_QUEUE", "motor.raw.dlx")
 
-    # ── File discovery ────────────────────────────────────────────────────────
-    # Comma-separated list of extensions to pick up (no dots, case-insensitive)
-    FILE_EXTENSIONS: str = "csv,txt"
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./shared.db")
 
-    # ── CSV / TXT parsing ─────────────────────────────────────────────────────
-    # Leave blank → auto-detect delimiter from first line of each file
-    CSV_DELIMITER: str = ""
+    extensions = os.getenv("EXTENSIONS", "csv,txt").split(",")
+    HAS_HEADER = os.getenv("HAS_HEADER", "true").lower() == "true"
+    CSV_DELIMITER = os.getenv("CSV_DELIMITER", ",")
+    WINDOW_SIZE = int(os.getenv("WINDOW_SIZE", 128))
+    WINDOW_STEP = int(os.getenv("WINDOW_STEP", 64))
 
-    # Set to false if your files have no header row
-    HAS_HEADER: bool = True
-
-    # ── Helpers ───────────────────────────────────────────────────────────────
-    @property
-    def extensions(self) -> List[str]:
-        """Return cleaned list of extensions, e.g. ['csv', 'txt']."""
-        return [e.strip().lower().lstrip(".") for e in self.FILE_EXTENSIONS.split(",") if e.strip()]
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    MAX_RETRIES = int(os.getenv("MAX_RETRIES", 3))
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 
 settings = Settings()

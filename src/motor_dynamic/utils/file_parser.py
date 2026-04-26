@@ -209,17 +209,26 @@ def parse_file(
             col: chunk[col].tolist() for col in column_names
         }
 
+        # yield FileRecord(
+        #     file_index   = file_index,
+        #     file_name    = filepath.name,
+        #     # filepath    = str(filepath.resolve()),
+        #     window_index = window_idx,
+        #     # row_start    = i,
+        #     # row_end      = i + window_size - 1,
+        #     data     = signals,
+        #     column_names = column_names,
+        #     column_count = len(column_names),
+        #     has_header   = has_header,
+        #     window_size  = window_size
+        # )
         yield FileRecord(
-            file_index   = file_index,
             file_name    = filepath.name,
-            file_path    = str(filepath.resolve()),
+            file_index   = file_index,
             window_index = window_idx,
-            row_start    = i,
-            row_end      = i + window_size - 1,
-            signals      = signals,
             column_names = column_names,
-            column_count = len(column_names),
-            has_header   = has_header,
+            data         = signals,
+            window_size  = window_size
         )
 
         i += window_step

@@ -1,15 +1,3 @@
-"""
-Motor Data Ingestion Service — entry point.
-
-Reads every CSV / TXT file from DATA_DIR (set DATA_DIR in .env),
-slices each file into windows, and publishes to RabbitMQ motor.raw queue.
-
-Run:
-    python main.py                          # batch ingest
-    uvicorn api.routes:app --reload         # HTTP API + background trigger
-    python consumer.py                      # teammate consumer
-"""
-
 import logging
 import sys
 
@@ -17,11 +5,11 @@ from config.settings import settings
 from services.logic import IngestionService
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=settings.LOG_LEVEL,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger("ingestion")
+logger = logging.getLogger("motor_dynamic")
 
 
 def main() -> None:
@@ -33,7 +21,7 @@ def main() -> None:
     logger.info(f"DELIMITER   : {repr(settings.CSV_DELIMITER) or 'auto-detect'}")
     logger.info(f"WINDOW_SIZE : {settings.WINDOW_SIZE} samples")
     logger.info(f"WINDOW_STEP : {settings.WINDOW_STEP} samples")
-    logger.info(f"RabbitMQ    : {settings.RABBITMQ_HOST}:{settings.RABBITMQ_PORT}")
+    logger.info(f"RabbitMQ URL: {settings.RABBITMQ_URL[:50]}...")
     logger.info(f"Queue       : {settings.RABBITMQ_QUEUE}")
     logger.info("═" * 60)
 

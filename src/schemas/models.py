@@ -1,5 +1,6 @@
 """
-Motor-dynamic specific schemas, defining everything locally to avoid circular imports.
+Shared data models for MessageEnvelope and FileRecord.
+Used by motor_dynamic (producer) and forecasting-service (consumer).
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from dataclasses import dataclass, field
 import json
 from datetime import datetime
 import uuid
+
 
 @dataclass
 class FileRecord:
@@ -29,6 +31,7 @@ class FileRecord:
             "data": self.data,
             "window_size": self.window_size,
         }
+
 
 @dataclass
 class MessageEnvelope:
@@ -53,10 +56,6 @@ class MessageEnvelope:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> MessageEnvelope:
         """Deserialize from dict."""
-        if not isinstance(data, dict):
-             # لو كانت data هي أصلاً Object، نرجعها زي ما هي (ده اللي هيحل المشكلة)
-             return data 
-             
         record_data = data.get("record", {})
         record = FileRecord(
             file_name=record_data.get("file_name"),
@@ -74,10 +73,10 @@ class MessageEnvelope:
         )
     @classmethod
     def from_bytes(cls, data: bytes) -> MessageEnvelope:
-        """تحويل البيانات القادمة من RabbitMQ (Bytes) إلى Object"""
         import json
-        decoded_data = json.loads(data.decode("utf-8"))
-        return cls.from_dict(decoded_data)
+        obj = json.loads(data.decode("utf-8"))
+        return cls.from_dict(obj)
+
 
 @dataclass
 class IngestionResult:
@@ -86,5 +85,3 @@ class IngestionResult:
     failed: int = 0
     skipped: int = 0
     errors: List[str] = field(default_factory=list)
-
-__all__ = ["MessageEnvelope", "FileRecord", "IngestionResult"]

@@ -1,24 +1,43 @@
+"""
+Business logic for sensor data processing.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict
 import numpy as np
 
-def extract_features(v_sample, i_sample):
-    features = {
-        'vibration_rms': np.sqrt(np.mean(v_sample**2)),
-        'vibration_kurtosis': float(np.mean((v_sample - np.mean(v_sample))**4) / (np.std(v_sample)**4 + 1e-6)),
-        'current_mean': np.mean(i_sample),
-        'peak_vibration': np.max(np.abs(v_sample))
-    }
-    return features
+logger = logging.getLogger(__name__)
 
-def verbalize_status(features):
-    rms = features['vibration_rms']
-    kurt = features['vibration_kurtosis']
-    curr = features['current_mean']
-    
-    status_msg = f"Motor operating with RMS vibration {rms:.4f}. "
-    if kurt > 1:
-        status_msg += "High peakiness detected. "
-    else:
-        status_msg += "Vibration distribution is stable. "
-    status_msg += f"Avg current: {curr:.4f}A."
-    
-    return status_msg
+
+class SensorLogic:
+    """Applies business rules to predictions."""
+
+    def process_prediction(
+        self,
+        prediction: Dict[str, Any],
+        sensor_data: Dict[str, Any],
+        file_name: str,
+    ) -> Dict[str, Any]:
+        """
+        Apply business logic to raw prediction.
+        """
+        try:
+            # Example: Flag high vibration as critical
+            vibration = sensor_data.get("vibration", 0)
+            if vibration > 80:
+                prediction["alert"] = "High vibration detected"
+            else:
+                prediction["alert"] = "Normal"
+
+            # Add metadata
+            prediction["processed_by"] = "SensorLogic"
+            prediction["file_name"] = file_name
+
+            logger.debug(f"Processed prediction: {prediction}")
+            return prediction
+
+        except Exception as exc:
+            logger.error(f"Logic processing failed: {exc}")
+            raise

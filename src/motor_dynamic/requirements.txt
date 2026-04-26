@@ -8,6 +8,7 @@ openpyxl>=3.1.0       # required by pandas for .xlsx
 # Validation & config
 pydantic>=2.7.0
 pydantic-settings>=2.2.0
+python-dotenv>=1.0.0
 
 # Database registry (SQLite by default, swap for PostgreSQL in prod)
 sqlalchemy>=2.0.0
