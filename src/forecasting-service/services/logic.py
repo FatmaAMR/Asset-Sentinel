@@ -1,25 +1,24 @@
 import numpy as np
-from scipy.stats import kurtosis
 
-def extract_features(vibration_window, current_window):
-    return {
-        "vibration_rms": np.sqrt(np.mean(np.square(vibration_window))),
-        "vibration_kurtosis": kurtosis(vibration_window),
-        "current_mean": np.mean(np.abs(current_window)),
-        "peak_vibration": np.max(np.abs(vibration_window))
+def extract_features(v_sample, i_sample):
+    features = {
+        'vibration_rms': np.sqrt(np.mean(v_sample**2)),
+        'vibration_kurtosis': float(np.mean((v_sample - np.mean(v_sample))**4) / (np.std(v_sample)**4 + 1e-6)),
+        'current_mean': np.mean(i_sample),
+        'peak_vibration': np.max(np.abs(v_sample))
     }
+    return features
+
 def verbalize_status(features):
     rms = features['vibration_rms']
     kurt = features['vibration_kurtosis']
     curr = features['current_mean']
     
-    status_msg = f"The motor is operating with an RMS vibration of {rms:.4f}. "
-    
+    status_msg = f"Motor operating with RMS vibration {rms:.4f}. "
     if kurt > 1:
-        status_msg += "High peakiness (Kurtosis) detected, suggesting potential impulsive shocks. "
+        status_msg += "High peakiness detected. "
     else:
-        status_msg += "Vibration distribution appears stable. "
-        
-    status_msg += f"Average current consumption is {curr:.4f}A."
+        status_msg += "Vibration distribution is stable. "
+    status_msg += f"Avg current: {curr:.4f}A."
     
     return status_msg
