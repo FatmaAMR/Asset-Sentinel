@@ -8,3 +8,5 @@ venv/
 .vscode/
 .idea/
 src/forecasting-service/data/
+test_full_system.py
+test_inference.py
