@@ -1,12 +1,3 @@
-"""
-Processing pipeline orchestrates:
-  • Data transformation
-  • Feature engineering
-  • Model inference
-  • Result storage
-  • Error handling & recovery
-"""
-
 from __future__ import annotations
 
 import logging
@@ -15,13 +6,13 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 import sys
 from pathlib import Path
-import numpy as np  # ضفنا numpy هنا
+import numpy as np
 
 # Add src to path for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from models.transformers import SensorTransformer
-from models.mock_model import predict, ModelInput, ModelOutput
+from services.forecasting_engine import ForecastingEngine
 from services.logic import SensorLogic
 from db.connection import get_db_connection
 
@@ -54,6 +45,11 @@ class ProcessingPipeline:
         self.transformer = transformer or SensorTransformer()
         self.logic = SensorLogic()
         self.db = get_db_connection()
+        
+        # Initialize the real AI Engine
+        # Path points to your .pth file in the assets folder
+        base_weights = "src/forecasting-service/assets/base_model.pth"
+        self.engine = ForecastingEngine(base_weights_path=base_weights)
 
     def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
         import time
@@ -63,6 +59,9 @@ class ProcessingPipeline:
         record = message.get("record", {})
         file_name = record.get("file_name", "unknown")
         window_index = record.get("window_index", 0)
+        
+        # Machine type for routing - default to base if not provided in envelope
+        machine_type = message.get("machine_type", "base_type")
 
         result = PipelineResult(
             success=False,
@@ -72,55 +71,64 @@ class ProcessingPipeline:
         )
 
         try:
-            logger.debug(f"[{message_id}] Stage 1: Extract data")
+            logger.debug(f"[{message_id}] Stage 1: Data Extraction")
             column_names = record.get("column_names", [])
             data = record.get("data", {})
 
             if not data:
                 raise ValueError("Empty sensor data")
 
-            logger.debug(f"[{message_id}] Stage 2: Transform features")
+            logger.debug(f"[{message_id}] Stage 2: Feature Transformation")
+            # This calls the existing SensorTransformer class
             transformed_data = self.transformer.transform(
                 data=data,
                 column_names=column_names,
             )
 
-            # --- التعديل الجوهري هنا لضبط الـ Shape ---
-            logger.debug(f"[{message_id}] Stage 3: Run prediction model")
+            logger.debug(f"[{message_id}] Stage 3: Real Model Inference")
             
-            # الموديل محتاج (50, 9). لو الداتا جاية فلات أو بمقاس مختلف (زي 128)، بنعيد تشكيلها وقصها.
+            # Reshaping to match SentinelTransformer requirements: (Batch, Seq_len, Features)
+            # Sentinel requires (1, 64, 21)
             try:
-                # 1. بنحولها لمصفوفة بـ 9 أعمدة (الأعمدة هي الحساسات المختارة)
-                reshaped = transformed_data.reshape(-1, 9)
-                # 2. بناخد أول 50 صف فقط عشان نطابق WINDOW_SIZE=50
-                prepared_window = reshaped[:50, :]
+                # Reshape to 21 features (Active features for FD001)
+                reshaped = transformed_data.reshape(-1, 21)
+                
+                # Check if we have enough rows for the window, otherwise pad with zeros
+                if reshaped.shape[0] < 64:
+                    padding = np.zeros((64 - reshaped.shape[0], 21))
+                    prepared_window = np.vstack((padding, reshaped))
+                else:
+                    prepared_window = reshaped[:64, :]
+                
+                # Add Batch dimension: (1, 64, 21)
+                prepared_window = np.expand_dims(prepared_window, axis=0)
+                
             except Exception as e:
-                logger.warning(f"Reshape failed, attempting fallback: {e}")
-                # Fallback في حالة وجود نقص في البيانات (تكملة بأصفار مثلاً)
-                prepared_window = np.zeros((50, 9))
+                logger.error(f"Data shaping failed: {e}")
+                # Fallback to zero window to avoid crash during testing
+                prepared_window = np.zeros((1, 64, 21))
 
-            model_input = ModelInput(
+            # Execute real inference and autonomous adaptation
+            predicted_rul = self.engine.run_inference(
                 machine_id=file_name,
-                window=prepared_window, # بعتنا الداتا بالـ shape الصح (50, 9)
+                machine_type=machine_type,
+                window_data=prepared_window
             )
-            # ------------------------------------------
-
-            model_output = predict(model_input)
 
             prediction = {
-                "predicted_rul": model_output.predicted_rul,
-                "failure_type": model_output.failure_type,
-                "raw_scores": model_output.raw_scores.tolist(),
+                "predicted_rul": float(predicted_rul),
+                "machine_type": machine_type,
+                "status": "monitored"
             }
 
-            logger.debug(f"[{message_id}] Stage 4: Apply business logic")
+            logger.debug(f"[{message_id}] Stage 4: Business Logic")
             processed_prediction = self.logic.process_prediction(
                 prediction=prediction,
                 sensor_data=data,
                 file_name=file_name,
             )
 
-            logger.debug(f"[{message_id}] Stage 5: Store results")
+            logger.debug(f"[{message_id}] Stage 5: Results Storage")
             self._store_results(
                 message_id=message_id,
                 file_name=file_name,
@@ -131,17 +139,17 @@ class ProcessingPipeline:
 
             result.success = True
             result.prediction = processed_prediction
-            logger.info(f"[{message_id}] Pipeline completed successfully")
+            logger.info(f"[{message_id}] Pipeline execution successful")
 
         except Exception as exc:
-            logger.error(f"[{message_id}] Pipeline failed: {exc}", exc_info=True)
+            logger.error(f"[{message_id}] Pipeline critical failure: {exc}", exc_info=True)
             result.success = False
             result.error = str(exc)
             result.error_stage = self._get_current_stage()
 
         finally:
             result.processing_time_ms = (time.time() - start_time) * 1000
-            logger.debug(f"[{message_id}] Total time: {result.processing_time_ms:.2f}ms")
+            logger.debug(f"[{message_id}] Total Processing Time: {result.processing_time_ms:.2f}ms")
 
         return {
             "success": result.success,
@@ -170,9 +178,8 @@ class ProcessingPipeline:
             }
             if self.db:
                 self.db.insert_prediction_result(result_record)
-                logger.debug(f"Stored result for {message_id}")
         except Exception as exc:
-            logger.error(f"Failed to store results: {exc}")
+            logger.error(f"Storage failed: {exc}")
 
     def _get_current_stage(self) -> str:
         import inspect
