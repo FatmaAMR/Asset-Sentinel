@@ -8,13 +8,16 @@ import sys
 from pathlib import Path
 import numpy as np
 
-# Add src to path for shared imports
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from models.transformers import SensorTransformer
 from services.forecasting_engine import ForecastingEngine
 from services.logic import SensorLogic
 from db.connection import get_db_connection
+
+from services.verification import verify, ModelInput
+from services.dispatcher import dispatch, ThresholdConfig
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +123,32 @@ class ProcessingPipeline:
                 "machine_type": machine_type,
                 "status": "monitored"
             }
+            logger.debug(f"[{message_id}] Stage 3.5: Verification & Dispatching")
+ 
+            model_input = ModelInput(
+                machine_id = file_name,
+                window     = prepared_window[0],  
+            )
+
+            verification = verify(model_input, self.engine, machine_type)
+ 
+            
+            decision = dispatch(verification)
+            prediction["mean_rul"]      = verification.mean_rul
+            prediction["std_rul"]       = verification.std_rul
+            prediction["confidence"]    = verification.confidence
+            prediction["failure_type"]  = verification.failure_type
+            prediction["alert_level"]   = decision.alert_level.value
+            prediction["alert_message"] = decision.message
+            prediction["should_alert"]  = decision.should_alert
+            prediction["channels"]      = decision.channels
+ 
+            logger.info(
+                f"[{message_id}] Dispatch Decision: {decision.alert_level.value} | "
+                f"RUL: {verification.mean_rul:.1f}h | "
+                f"Confidence: {verification.confidence:.0%}"
+            )
+
 
             logger.debug(f"[{message_id}] Stage 4: Business Logic")
             processed_prediction = self.logic.process_prediction(

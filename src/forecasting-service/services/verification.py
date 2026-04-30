@@ -12,58 +12,65 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import List
 
-from models.mock_model import ModelInput, ModelOutput, predict
+from models.sentinel_nn import ModelInput, ModelOutput, predict
 
 
-# ── Config ────────────────────────────────────────────────────────────────────
-N_RUNS        = 10      # how many stochastic passes per inference
-NOISE_STD     = 0.01    # std of Gaussian noise added to input  (normalised units)
-EPSILON       = 1e-6    # avoid division by zero in confidence formula
-
+N_RUNS  = 20       
+EPSILON = 1e-6     
 
 @dataclass
 class VerificationResult:
-    machine_id:      str
-    mean_rul:        float
-    std_rul:         float
-    confidence:      float
-    failure_type:    str
-    all_predictions: List[ModelOutput] = field(repr=False)
+    machine_id:      str    
+    mean_rul:        float  
+    std_rul:         float  
+    confidence:      float  
+    failure_type:    str    
+    all_predictions: List[ModelOutput] = field(repr=False)  
+
 
 
 class StochasticRunner:
-  
-    def __init__(self, n_runs: int = N_RUNS, noise_std: float = NOISE_STD):
-        self.n_runs    = n_runs
-        self.noise_std = noise_std
+    def __init__(self, n_runs: int = N_RUNS):
+        self.n_runs = n_runs
 
-    def run(self, model_input: ModelInput) -> List[ModelOutput]:
-     
+    def run(self, model_input: ModelInput, engine: Any, machine_type: str) -> List[ModelOutput]:
         results = []
         for _ in range(self.n_runs):
-            # add tiny Gaussian noise to simulate input uncertainty
-            noisy_window = model_input.window + np.random.normal(
-                loc=0.0, scale=self.noise_std, size=model_input.window.shape
-            )
-            noisy_input = ModelInput(
+            predicted_rul = engine.run_inference(
                 machine_id=model_input.machine_id,
-                window=noisy_window
+                machine_type=machine_type,
+                window_data=np.expand_dims(model_input.window, axis=0)
             )
-            results.append(predict(noisy_input))
+      
+            results.append(ModelOutput(
+                machine_id=model_input.machine_id,
+                predicted_rul=float(predicted_rul),
+                failure_type="unknown" 
+            ))
         return results
 
 
+
+
+
+
 class UncertaintyChecker:
-   
+
 
     def check(self, predictions: List[ModelOutput]) -> VerificationResult:
+
         rul_values = np.array([p.predicted_rul for p in predictions])
 
         mean_rul = float(np.mean(rul_values))
-        std_rul  = float(np.std(rul_values))
+  
 
-        raw_confidence = 1.0 - (std_rul / (mean_rul + EPSILON))
-        confidence     = float(np.clip(raw_confidence, 0.0, 1.0))
+        std_rul = float(np.std(rul_values))
+
+        confidence = float(np.clip(
+            1.0 - (std_rul / (mean_rul + EPSILON)),
+            0.0,
+            1.0
+        ))
 
         failure_counts = {}
         for p in predictions:
@@ -79,11 +86,8 @@ class UncertaintyChecker:
             all_predictions = predictions,
         )
 
-def verify(model_input: ModelInput) -> VerificationResult:
- 
-    runner  = StochasticRunner(n_runs=10, noise_std=0.01) 
-    checker = UncertaintyChecker()
 
-    predictions = runner.run(model_input)
-    return checker.check(predictions)
-
+def verify(model_input: ModelInput, engine: Any, machine_type: str = "base_type") -> VerificationResult:
+  
+    predictions = StochasticRunner().run(model_input, engine, machine_type)
+    return UncertaintyChecker().check(predictions)
