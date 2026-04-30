@@ -1,7 +1,7 @@
 import os
 import torch
 import torch.optim as optim
-from ..models.sentinel_nn import SentinelTransformer
+from models.sentinel_nn import SentinelTransformer
 from .adaptation_logic import AutonomousSentinel
 
 class ForecastingEngine:
