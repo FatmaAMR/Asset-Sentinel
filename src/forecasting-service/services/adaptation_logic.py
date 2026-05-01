@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import logging
 import sys
 from pathlib import Path
+import pandas as pd
 
 # Setup path for imports
 service_root = Path(__file__).resolve().parent.parent
@@ -192,7 +193,31 @@ if __name__ == "__main__":
     empty_data = np.array([])
     adapted = manager.adapt_to_type(empty_data, "invalid_type")
     print(f"  Handled empty data: {not adapted} (Expected: False) - {'✓ PASS' if not adapted else '✗ FAIL'}")
-    
+
+    # Test 7: Real data adaptation using raw/test_FD002.csv
+    print("\nTest 7: Real Data Adaptation (test_FD002.csv)")
+    raw_csv = service_root.parent / "raw" / "test_FD002.csv"
+    if not raw_csv.exists():
+        print(f"  Raw file not found: {raw_csv}")
+    else:
+        df = pd.read_csv(raw_csv)
+        sensor_columns = [col for col in df.columns if col.startswith("s_")]
+        if len(sensor_columns) != 21:
+            print(f"  Unexpected sensor column count: {len(sensor_columns)}")
+        else:
+# Use the first 128 timesteps from unit 1 to create two real windows
+                window_df = df[df["unit_nr"] == 1].head(128)
+                if len(window_df) < 128:
+                    print(f"  Not enough rows for two full windows: {len(window_df)}")
+                else:
+                    real_window = window_df[sensor_columns].to_numpy(dtype=np.float32)
+                    real_window = real_window.reshape(2, 64, 21)
+                print(f"  Loaded real window shape: {real_window.shape}")
+                is_ood = manager.check_ood(real_window)
+                print(f"  Real data OOD: {is_ood}")
+                adapted = manager.adapt_to_type(real_window, "turbofan", ood_threshold=0.0)
+                print(f"  Adaptation triggered on real data: {adapted} - {'✓ PASS' if adapted else '✗ FAIL'}")
+
     print("\n" + "=" * 80)
     print("Adaptation Logic Tests Completed!")
     print("=" * 80)
