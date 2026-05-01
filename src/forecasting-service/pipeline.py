@@ -136,7 +136,7 @@ class ProcessingPipeline:
             logger.debug(f"[{message_id}] Stage 3.5: Verification & Dispatch")
 
             # Verification based on model confidence and window variance
-            verification = verify(prepared_window, self.engine, machine_type)
+            verification = verify(prepared_window, self.engine, machine_type, machine_id=file_name)
             
             # Final Dispatch Decision (Alert Levels)
             decision = dispatch(verification)

@@ -20,7 +20,12 @@ class ForecastingEngine:
             load_path = type_weights_path if os.path.exists(type_weights_path) else self.base_weights
             
             checkpoint = torch.load(load_path, map_location=self.device)
-            model.load_state_dict(checkpoint['model_state_dict'])
+            # Handle both formats: OrderedDict (direct state_dict) and wrapped format
+            if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['model_state_dict'])
+            else:
+                # Checkpoint is the state_dict directly
+                model.load_state_dict(checkpoint)
             self.type_models[machine_type] = model
             
         return self.type_models[machine_type]
