@@ -39,6 +39,17 @@ async def get_factory_summary(
         raise HTTPException(status_code=404, detail=f"Machine {machine_id} not found")
     return data
 
+@router.get("/machines/{machine_id}/history", response_model=MachineHistoryResponse)
+async def get_history(
+    machine_id: str, 
+    limit: int = Query(50, description="عدد القراءات المطلوبة"), 
+    db_source = Depends(get_mock_influx_data)
+):
+    data = await get_machine_history(db_source, machine_id, limit)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Machine {machine_id} not found")
+    return data
+
 
 @router.get("/machines/{machine_id}", response_model=MachineDetailsResponse)
 async def get_details(machine_id: str, db_source = Depends(get_mock_influx_data)):
