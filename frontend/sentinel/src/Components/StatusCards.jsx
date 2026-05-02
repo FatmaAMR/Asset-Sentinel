@@ -1,10 +1,21 @@
+import { useEffect } from 'react';
+import useAssetStore from '../stores/assetStore';
+
 export default function StatusCards() {
+  const { factorySummary, loading, fetchFactorySummary } = useAssetStore();
+
+  useEffect(() => {
+    fetchFactorySummary();
+  }, []);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <div className="bg-primary p-6 rounded-3xl text-white shadow-xl relative overflow-hidden group">
         <div className="relative z-10">
           <p className="text-white/70 text-sm font-medium">Total Fleet Assets</p>
-          <h3 className="text-4xl font-bold mt-1">1,284</h3>
+          <h3 className="text-4xl font-bold mt-1">
+            {loading ? '...' : factorySummary?.total_machines ?? '—'}
+          </h3>
           <div className="mt-4 flex items-center gap-2 text-xs bg-white/20 w-fit px-2 py-1 rounded-full">
             <span className="material-icons-round text-sm">trending_up</span>
             <span>+12 this month</span>
@@ -18,7 +29,9 @@ export default function StatusCards() {
             <p className="text-slate-500 text-sm font-medium">Critical Alerts</p>
             <span className="w-2 h-2 rounded-full bg-failure animate-ping" />
           </div>
-          <h3 className="text-4xl font-bold text-failure">03</h3>
+          <h3 className="text-4xl font-bold text-failure">
+            {loading ? '...' : String(factorySummary?.critical_machines_count ?? '—').padStart(2, '0')}
+          </h3>
         </div>
         <p className="text-xs text-slate-400 mt-4 italic">ISO 10816 Breach detected</p>
       </div>
