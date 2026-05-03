@@ -1,14 +1,16 @@
-from fastapi import HTTPException
-from schemas.models import AssetCreate, AssetStatusEnum, StaffCreate
+from fastapi import HTTPException, status # تأكد من وجود status هنا[cite: 5]
 from schemas.models import AssetCreate, AssetStatusEnum, StaffCreate, ThresholdRuleCreate
-
+from services.security import verify_password, get_password_hash
 # ==========================================
 # 1. Assets In-Memory DB & Logic
 # ==========================================
 mock_db_assets = {
     "MOTOR-001": {
-        "asset_id": "MOTOR-001", "machine_type": "FD001", "location_floor": 1,
-        "location_section": "Section A", "specifications": {"max_rpm": 1500},
+        "asset_id": "MOTOR-001", 
+        "machine_type": "FD001", 
+        "location_floor": 1,
+        "location_section": "Section A", 
+        "specifications": {"max_rpm": 1500},
         "status": AssetStatusEnum.active
     }
 }
@@ -50,25 +52,61 @@ class AssetLogic:
 # ==========================================
 mock_db_staff = {
     "EMP-001": {
-        "staff_id": "EMP-001", "full_name": "Ezz Ahmed", 
-        "role": "Admin", "email": "ezz@factory.com", "created_at": "2026-05-03"
+        "staff_id": "EMP-001", 
+        "full_name": "Ezz Ahmed", 
+        "role": "Admin", 
+        "email": "ezz@factory.com", 
+        "password": get_password_hash("123456"),
+        "created_at": "2026-05-03"
     }
 }
+
 
 class StaffLogic:
     @staticmethod
     def add_staff(staff: StaffCreate):
-        # توليد ID تلقائي بسيط
         new_id = f"EMP-{len(mock_db_staff) + 1:03d}"
+        hashed_pw = get_password_hash(staff.password)
         new_staff = {
-            "staff_id": new_id,
-            "full_name": staff.full_name,
-            "role": staff.role,
-            "email": staff.email,
-            "created_at": "2026-05-03"
+            "staff_id": new_id, "full_name": staff.full_name,
+            "role": staff.role, "email": staff.email,
+            "password": hashed_pw, "created_at": "2026-05-03"
         }
         mock_db_staff[new_id] = new_staff
         return new_staff
+
+    @staticmethod
+    def change_staff_password(email: str, old_pw: str, new_pw: str):
+        user_id, user_data = None, None
+        for uid, staff in mock_db_staff.items():
+            if staff["email"] == email:
+                user_id, user_data = uid, staff
+                break
+        
+        if not user_data:
+            raise HTTPException(status_code=404, detail="Staff not found")
+
+        if not verify_password(old_pw, user_data["password"]):
+            raise HTTPException(status_code=400, detail="Incorrect old password")
+
+        mock_db_staff[user_id]["password"] = get_password_hash(new_pw)
+        return {"message": "Password updated successfully"}
+
+    @staticmethod
+    def authenticate_user(email: str, password: str):
+        user = None
+        for staff in mock_db_staff.values():
+            if staff["email"] == email:
+                user = staff
+                break
+
+        if not user or not verify_password(password, user["password"]):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user
 
     @staticmethod
     def list_all_staff():
@@ -85,12 +123,10 @@ class StaffLogic:
         if staff_id not in mock_db_staff:
             raise HTTPException(status_code=404, detail="Staff not found")
         
-        # بنحدث البيانات بس بنحتفظ بنفس الـ ID وتاريخ الإنشاء القديم
         updated_staff = {
-            "staff_id": staff_id,
-            "full_name": staff.full_name,
-            "role": staff.role,
-            "email": staff.email,
+            "staff_id": staff_id, "full_name": staff.full_name,
+            "role": staff.role, "email": staff.email,
+            "password": get_password_hash(staff.password),
             "created_at": mock_db_staff[staff_id]["created_at"]
         }
         mock_db_staff[staff_id] = updated_staff
@@ -103,7 +139,7 @@ class StaffLogic:
         del mock_db_staff[staff_id]
         return {"message": f"Staff {staff_id} deleted successfully"}
     
-    # ==========================================
+# ==========================================
 # 3. Threshold Rules In-Memory DB & Logic
 # ==========================================
 mock_db_thresholds = {

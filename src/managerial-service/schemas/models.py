@@ -1,9 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
 from enum import Enum
 
 # ==========================================
-# 1. Enums (الثوابت)
+# 1. Enums
 # ==========================================
 class RoleEnum(str, Enum):
     admin = "Admin"
@@ -16,22 +16,26 @@ class AssetStatusEnum(str, Enum):
     decommissioned = "Decommissioned"
 
 # ==========================================
-# 2. Staff Schemas (جدول الموظفين/المهندسين)
+# 2. Staff Schemas
 # ==========================================
-class StaffBase(BaseModel):
+class StaffCreate(BaseModel):
     full_name: str
-    role: RoleEnum
-    email: EmailStr
-
-class StaffCreate(StaffBase):
+    email: str
+    role: str
     password: str
 
-class StaffResponse(StaffBase):
+class StaffResponse(BaseModel):
     staff_id: str
-    created_at: str
+    full_name: str
+    email: str
+    role: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 # ==========================================
-# 3. Factory Assets Schemas (جدول المكن)
+# 3. Factory Assets Schemas
 # ==========================================
 class AssetBase(BaseModel):
     asset_id: str = Field(..., example="MOTOR-001")
@@ -48,16 +52,16 @@ class AssetResponse(AssetBase):
     pass
 
 # ==========================================
-# 4. Threshold Rules Schemas (قواعد التنبيهات)
+# 4. Threshold Rules Schemas
 # ==========================================
 class ThresholdRuleBase(BaseModel):
     machine_type: str = Field(..., example="FD001")
-    warning_limit: float = Field(..., description="RUL limit for warning (e.g., 30)")
-    critical_limit: float = Field(..., description="RUL limit for critical (e.g., 15)")
+    warning_limit: float
+    critical_limit: float
 
 class ThresholdRuleCreate(ThresholdRuleBase):
     updated_by_staff_id: str
 
 class ThresholdRuleResponse(ThresholdRuleBase):
     rule_id: str
-    updated_by_staff_id: str
+    updated_by_staff_id: str 
