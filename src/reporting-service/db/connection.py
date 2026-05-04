@@ -19,7 +19,7 @@ async def get_mock_influx_data(machine_count: int = 5, records_per_machine: int 
 
         for hour in range(records_per_machine):
             record_time = current_time - timedelta(hours=hour)
-            temperature = round(random.uniform(65, 90.5cd ../..), 2)
+            temperature = round(random.uniform(65, 90.5), 2)
             vibration = round(random.uniform(0.5, 3.5), 2)
 
             mock_data.append({
