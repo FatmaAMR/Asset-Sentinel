@@ -8,6 +8,8 @@ Routes access them via service_factory — no re-initialization there.
 import logging
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from fastapi import FastAPI
@@ -32,6 +34,7 @@ async def lifespan(app: FastAPI):
     collection = get_chroma_collection()
     embedder   = Embedder(collection)          # loads sentence-transformer model
     llama      = LlamaClient()                 # Ollama HTTP client
+
 
     # # Ingest PDFs from knowledge folder
     # chunks = load_pdfs(settings.knowledge_folder)
@@ -59,7 +62,12 @@ app = FastAPI(
 )
 
 app.include_router(rag_router)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/health")
 async def health():

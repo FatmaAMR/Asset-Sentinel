@@ -1,14 +1,34 @@
+import { useEffect } from "react";
+import useQueryingStore from "../../stores/queringStore";
+
 export default function StatsRow() {
+  const { fetchStatus, totalChunks, isReady, loading } = useQueryingStore();
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  const displayChunks =
+    totalChunks != null ? totalChunks.toLocaleString() : loading ? "…" : "—";
+
   return (
     <section className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 py-10 border-t border-slate-200 dark:border-slate-800">
+      {/* Live from backend */}
       <div>
         <span className="block text-3xl font-display font-extrabold text-primary mb-1">
-          42,000+
+          {displayChunks}
         </span>
         <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">
           Total Chunks
         </span>
+        {isReady && (
+          <span className="mt-1 inline-block text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
+            Live
+          </span>
+        )}
       </div>
+
+      {/* Static stats */}
       <div>
         <span className="block text-3xl font-display font-extrabold text-primary mb-1">
           156
