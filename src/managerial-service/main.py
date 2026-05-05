@@ -1,10 +1,19 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from api.asset_routes import router as asset_router
 from api.staff_routes import router as staff_router
 from api.threshold_routes import router as threshold_router # السطر ده جديد
 from api import auth_routes
 
 app = FastAPI(title="Managerial Service - Asset Sentinel")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(asset_router, prefix="/api/v1/managerial")
 app.include_router(staff_router, prefix="/api/v1/managerial")
