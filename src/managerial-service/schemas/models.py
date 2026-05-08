@@ -30,6 +30,9 @@ class StaffResponse(BaseModel):
     email: str
     role: str
 
+    class Config:
+        from_attributes = True
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -45,6 +48,9 @@ class AssetBase(BaseModel):
     specifications: Optional[Dict[str, Any]] = {}
     status: AssetStatusEnum = AssetStatusEnum.active
 
+    class Config:
+        from_attributes = True  # مهم عشان يشتغل مع SQLAlchemy
+
 class AssetCreate(AssetBase):
     pass
 
@@ -59,9 +65,12 @@ class ThresholdRuleBase(BaseModel):
     warning_limit: float
     critical_limit: float
 
+    class Config:
+        from_attributes = True
+
 class ThresholdRuleCreate(ThresholdRuleBase):
     updated_by_staff_id: str
 
 class ThresholdRuleResponse(ThresholdRuleBase):
     rule_id: str
-    updated_by_staff_id: str 
+    updated_by_staff_id: str

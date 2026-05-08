@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
-import db_models
 from api.asset_routes import router as asset_router
 from api.staff_routes import router as staff_router
 from api.threshold_routes import router as threshold_router
 from api import auth_routes
+from db.connection import engine, Base
+from db import models # بدل import db_models
 
 # تكريت الجداول في الداتا بيز أول ما السيرفر يقوم
 Base.metadata.create_all(bind=engine)
