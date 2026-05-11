@@ -2,9 +2,16 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta 
 from typing import Optional
 
+# ==========================================
+# التعديلات الجديدة بعد نقل ملفات الداتا بيز
+# ==========================================
+from sqlalchemy.orm import Session
+from db.connection import get_db  # عشان نفتح سيشن وندور في الداتا بيز
+from db.models import DBStaff     # الموديل بتاع الموظفين عشان نتأكد إن اليوزر موجود
+# from schemas.models import TokenData  # (لو إنت عامل سكيما للتوكن داتا شيل الـ # من هنا)
 SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
