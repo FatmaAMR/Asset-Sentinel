@@ -1,0 +1,1 @@
+# Manages database connections for logging LLM interactions (optional)
