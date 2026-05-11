@@ -19,21 +19,26 @@ class ForecastingEngine:
             type_weights_path = os.path.join(self.assets_dir, f"{machine_type}.pth")
             load_path = type_weights_path if os.path.exists(type_weights_path) else self.base_weights
             
+            print(f"[Engine] Loading weights from: {load_path}")
             checkpoint = torch.load(load_path, map_location=self.device)
-            model.load_state_dict(checkpoint['model_state_dict'])
+            
+            if isinstance(checkpoint, dict):
+                if 'model_state_dict' in checkpoint:
+                    state_dict = checkpoint['model_state_dict']
+                elif 'state_dict' in checkpoint:
+                    state_dict = checkpoint['state_dict']
+                else:
+                    state_dict = checkpoint
+            else:
+                state_dict = checkpoint
+            
+            model.load_state_dict(state_dict)
             self.type_models[machine_type] = model
+            print(f"[Engine] {machine_type} model loaded successfully.")
             
         return self.type_models[machine_type]
 
     def run_inference(self, machine_id, machine_type, window_data):
-        """
-        Complete pipeline execution:
-        1. Model Routing
-        2. OOD Detection
-        3. Autonomous Adaptation
-        4. RUL Prediction
-        """
-        # input_dim derived from the second dimension of the window (channels)
         input_dim = window_data.shape[2] 
         model = self._get_model_instance(machine_type, input_dim)
         
@@ -42,8 +47,8 @@ class ForecastingEngine:
 
         # Monitor and Adapt
         if adaptor.check_ood(window_data):
+            print(f">> OOD Detected for {machine_id}, adapting...")
             adaptor.adapt_to_type(window_data, machine_type)
-            # Save updated weights for this specific machine type
             save_path = os.path.join(self.assets_dir, f"{machine_type}.pth")
             torch.save({'model_state_dict': model.state_dict()}, save_path)
             print(f">> Synchronized weights saved for {machine_type}")
@@ -52,13 +57,8 @@ class ForecastingEngine:
         model.eval()
         with torch.no_grad():
             input_tensor = torch.tensor(window_data, dtype=torch.float32).to(self.device)
-            rul_prediction = model(input_tensor).item()
+            output = model(input_tensor)
+            rul_prediction = output.item() if hasattr(output, 'item') else float(output)
             
         return rul_prediction
     
-
-
-
-    # src/forecasting-service/services/adaptation_logic.py
-def check_ood(self, window_data):
-    return False  # Force normal inference for testing
