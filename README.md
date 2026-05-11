@@ -1,4 +1,4 @@
-# Asset-Sentinel: Industrial AI Ecosystem 🛡️🏭
+# Asset-Sentinel: proactive industrial maintenance Ecosystem 🛡️🏭
 
 Asset-Sentinel is an end-to-end, proactive industrial maintenance platform designed to predict equipment failures and optimize maintenance cycles. By leveraging a hybrid AI approach, it combines high-precision numerical forecasting with generative intelligence for diagnostics.
 
@@ -14,6 +14,8 @@ The project follows a **Microservices Architecture** with each service organized
 * **Querying Service**: Natural language interface using **Text-to-SQL** for seamless data exploration.
 * **Reporting & Visualization**: Real-time dashboards and historical performance analytics.
 * **Managerial Service**: Factory hierarchy, user roles, and system configuration management.
+  
+<img width="5689" height="2405" alt="GP General Thoughts" src="https://github.com/user-attachments/assets/4afbc8f0-073f-451f-b322-1ff5d9e51ded" />
 
 ---
 
