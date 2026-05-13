@@ -47,7 +47,7 @@ class Settings:
     # --- External Service Endpoints (Pulled from .env) ---
     # We provide a default value as a fallback
     CONSULTING_SERVICE_BASE_URL = os.getenv("CONSULTING_SERVICE_URL", "http://localhost:8001")
-    MANAGERIAL_SERVICE_BASE_URL = os.getenv("MANAGERIAL_SERVICE_URL", "http://localhost:8001")
+    MANAGERIAL_SERVICE_BASE_URL = os.getenv("MANAGERIAL_SERVICE_URL", "http://localhost:8002")
 
     # --- Derived Full Endpoints ---
     @property
@@ -56,7 +56,7 @@ class Settings:
 
     @property
     def managerial_api_url(self) -> str:
-        return f"{self.MANAGERIAL_SERVICE_BASE_URL}/staff/all"
+       return f"{self.MANAGERIAL_SERVICE_BASE_URL}/api/v1/managerial/staff/all"
 
 settings = Settings()
 

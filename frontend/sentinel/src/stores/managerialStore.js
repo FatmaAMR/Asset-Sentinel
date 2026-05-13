@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import axios from 'axios';
 
-const BASE = 'http://localhost:8001/api/v1/managerial';
+const BASE = 'http://localhost:8002/api/v1/managerial';
 
 const useManagerialStore = create((set, get) => ({
   token: localStorage.getItem('sentinel_token') || null,
+  user: JSON.parse(localStorage.getItem('sentinel_user') || 'null'),
   assets: [],
   thresholds: [],
   loading: false,
@@ -21,12 +22,20 @@ const useManagerialStore = create((set, get) => ({
       const res = await axios.post(`${BASE}/auth/login`, form, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
+
       const token = res.data.access_token;
+
+      // decode JWT payload to get user info
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const user = { email: payload.sub, role: payload.role };
+
       localStorage.setItem('sentinel_token', token);
-      set({ token });
+      localStorage.setItem('sentinel_user', JSON.stringify(user));
+      set({ token, user });
       return true;
     } catch (err) {
-      set({ error: 'Invalid credentials' });
+      const msg = err.response?.data?.detail ?? 'Invalid credentials';
+      set({ error: msg });
       return false;
     } finally {
       set({ loading: false });
@@ -35,9 +44,11 @@ const useManagerialStore = create((set, get) => ({
 
   logout: () => {
     localStorage.removeItem('sentinel_token');
-    set({ token: null });
+    localStorage.removeItem('sentinel_user');
+    set({ token: null, user: null });
   },
 
+  // Assets
   fetchAssets: async () => {
     set({ loading: true });
     try {
@@ -74,7 +85,7 @@ const useManagerialStore = create((set, get) => ({
     }
   },
 
-
+  // Thresholds
   fetchThresholds: async () => {
     set({ loading: true });
     try {
@@ -90,15 +101,20 @@ const useManagerialStore = create((set, get) => ({
   },
 
   createThreshold: async (rule) => {
-    try {
-      await axios.post(`${BASE}/thresholds/`, rule, {
-        headers: { Authorization: `Bearer ${get().token}` }
-      });
-      get().fetchThresholds();
-    } catch (err) {
-      set({ error: err.message });
-    }
-  },
+  try {
+    await axios.post(`${BASE}/thresholds/`, {
+      ...rule,
+      warning_limit: parseFloat(rule.warning_limit),
+      critical_limit: parseFloat(rule.critical_limit),
+      updated_by_staff_id: "EMP-001"
+    }, {
+      headers: { Authorization: `Bearer ${get().token}` }
+    });
+    get().fetchThresholds();
+  } catch (err) {
+    set({ error: err.message });
+  }
+},
 
   deleteThreshold: async (ruleId) => {
     try {
