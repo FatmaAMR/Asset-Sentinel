@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  motor_dynamic:
+    build: .
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - MOTOR_EXCHANGE=${MOTOR_EXCHANGE}
+      - MOTOR_QUEUE=${MOTOR_QUEUE}
+      - MOTOR_ROUTING_KEY=${MOTOR_ROUTING_KEY}
+      - MOTOR_DLX_QUEUE=${MOTOR_DLX_QUEUE}
+    volumes:
+      - ./data:/app/data
+    restart: always
+
+  forecasting-service:
+    build: ../forecasting-service
+    depends_on:
+      - motor_dynamic
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - MOTOR_EXCHANGE=${MOTOR_EXCHANGE}
+      - MOTOR_QUEUE=${MOTOR_QUEUE}
+      - MOTOR_ROUTING_KEY=${MOTOR_ROUTING_KEY}
+      - FORECASTING_EXCHANGE=${FORECASTING_EXCHANGE}
+      - EQUIPMENT_STATUS_QUEUE=${EQUIPMENT_STATUS_QUEUE}
+      - EQUIPMENT_STATUS_ROUTING_KEY=${EQUIPMENT_STATUS_ROUTING_KEY}
+      - ALERTS_NOTIFICATIONS_QUEUE=${ALERTS_NOTIFICATIONS_QUEUE}
+      - ALERTS_NOTIFICATIONS_ROUTING_KEY=${ALERTS_NOTIFICATIONS_ROUTING_KEY}
+      - ALERTS_RAG_QUEUE=${ALERTS_RAG_QUEUE}
+      - ALERTS_RAG_ROUTING_KEY=${ALERTS_RAG_ROUTING_KEY}
+    restart: always
+
+  reporting-service:
+    build: ../equipment-status-service
+    depends_on:
+      - forecasting-service
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - FORECASTING_EXCHANGE=${FORECASTING_EXCHANGE}
+      - EQUIPMENT_STATUS_QUEUE=${EQUIPMENT_STATUS_QUEUE}
+      - EQUIPMENT_STATUS_ROUTING_KEY=${EQUIPMENT_STATUS_ROUTING_KEY}
+    restart: always
+
+  consulting-service:
+    build: ../alerts-service
+    depends_on:
+      - forecasting-service
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - FORECASTING_EXCHANGE=${FORECASTING_EXCHANGE}
+      - ALERTS_NOTIFICATIONS_QUEUE=${ALERTS_NOTIFICATIONS_QUEUE}
+      - ALERTS_NOTIFICATIONS_ROUTING_KEY=${ALERTS_NOTIFICATIONS_ROUTING_KEY}
+    restart: always
+
+  
