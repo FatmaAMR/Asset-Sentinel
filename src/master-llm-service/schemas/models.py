@@ -1,0 +1,1 @@
+# Defines Pydantic models for request/response validation (Input/Output)
