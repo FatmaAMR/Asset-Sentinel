@@ -1,33 +1,25 @@
-import random
-from datetime import datetime, timedelta
-import asyncio
+from pymongo import MongoClient
+from pymongo.collection import Collection
+import os
+from dotenv import load_dotenv
+from pathlib import Path
 
-# حولنا الدالة لـ async
-async def get_mock_influx_data(machine_count: int = 5, records_per_machine: int = 24):
-    """
-    محاكاة لجلب البيانات بشكل غير متزامن (Async).
-    """
-    # بنعمل "sleep" بسيط عشان نحاكي وقت استجابة الداتا بيز
-    await asyncio.sleep(0.1) 
-    
-    mock_data = []
-    current_time = datetime.utcnow()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
 
-    for machine_id in range(1, machine_count + 1):
-        machine_name = f"Machine_{machine_id}"
-        base_rul = random.randint(5, 100)
+MONGO_URL       = os.getenv("DB_URL")
+DATABASE_NAME   = os.getenv("DB_NAME", "Sentinel")
+COLLECTION_NAME = os.getenv("DB_COLLECTION", "cmapss_sensor_data")
 
-        for hour in range(records_per_machine):
-            record_time = current_time - timedelta(hours=hour)
-            temperature = round(random.uniform(65, 90.5), 2)
-            vibration = round(random.uniform(0.5, 3.5), 2)
+# Single client instance reused across the app
+_client: MongoClient = None
 
-            mock_data.append({
-                "timestamp": record_time.isoformat(),
-                "machine_id": machine_name,
-                "temperature": temperature,
-                "vibration": vibration,
-                "rul_days": base_rul
-            })
-            
-    return sorted(mock_data, key=lambda x: x["timestamp"])
+
+def get_client() -> MongoClient:
+    global _client
+    if _client is None:
+        _client = MongoClient(MONGO_URL)
+    return _client
+
+
+def get_collection() -> Collection:
+    return get_client()[DATABASE_NAME][COLLECTION_NAME]
