@@ -18,7 +18,7 @@ from utils.logger             import setup_logging
 from db.chroma_client         import get_chroma_collection
 from services.pdf_loader      import load_pdfs
 from services.embedder        import Embedder
-from services.llama_client    import LlamaClient
+from services.llm_client         import LLMClient            # ← was LlamaClient
 from services.service_factory import init_services
 from api.rag_router           import router as rag_router
 
@@ -33,21 +33,9 @@ async def lifespan(app: FastAPI):
     # ── Declare all services here ─────────────────────────────────────────────
     collection = get_chroma_collection()
     embedder   = Embedder(collection)          # loads sentence-transformer model
-    llama      = LlamaClient()                 # Ollama HTTP client
+    llm        = LLMClient()                   # ← was LlamaClient() — calls master-llm-service
 
-
-    # # Ingest PDFs from knowledge folder
-    # chunks = load_pdfs(settings.knowledge_folder)
-    # if chunks:
-    #     result = embedder.build(chunks)
-    #     logger.info("+%d new chunks | %d total",
-    #                 result["chunks_added"], result["total_chunks"])
-    # else:
-    #     logger.warning("No PDFs found in '%s'. Upload via POST /rag/ingest",
-    #                    settings.knowledge_folder)
-
-    # Register into factory so routes can access them
-    init_services(embedder, llama)
+    init_services(embedder, llm)
 
     logger.info("=== Service ready ===")
     yield

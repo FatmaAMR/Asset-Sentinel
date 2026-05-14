@@ -15,14 +15,14 @@ import re
 import json
 import logging
 from dataclasses import dataclass, field
-from services.embedder     import Embedder
-from services.llama_client import LlamaClient
-from config                import settings
+from services.embedder  import Embedder
+from services.llm_client   import LLMClient          # ← was LlamaClient
+from config             import settings
 
 logger = logging.getLogger("agentic_rag")
 
-MAX_ITERATIONS      = 2      # ChromaDB retry cycles before falling back to web
-DISTANCE_THRESHOLD  = 0.45   # cosine distance — below this = relevant chunk
+MAX_ITERATIONS      = 2
+DISTANCE_THRESHOLD  = 0.45
 
 
 @dataclass
@@ -39,9 +39,9 @@ class AgentState:
 
 class AgenticRAGService:
 
-    def __init__(self, embedder: Embedder, llama: LlamaClient):
+    def __init__(self, embedder: Embedder, llm: LLMClient):   # ← was llama
         self.embedder = embedder
-        self.llama    = llama
+        self.llm      = llm                                    # ← was self.llama
 
     # ── Main entry point ──────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ Question: {question}
 JSON:"""
 
         try:
-            raw     = await self.llama.complete(prompt)
+            raw     = await self.llm.complete(prompt)
             queries = self._extract_json_array(raw)
             if queries:
                 return queries[:3]
@@ -163,7 +163,7 @@ Generate 1 to 2 new different search queries. Return a JSON array only.
 JSON:"""
 
         try:
-            raw     = await self.llama.complete(prompt)
+            raw     = await self.llm.complete(prompt)
             queries = self._extract_json_array(raw)
             if queries:
                 return queries[:2]
@@ -236,7 +236,7 @@ Question: {state.question}
 
 Answer:"""
 
-        return await self.llama.complete(prompt)
+        return await self.llm.complete(prompt)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

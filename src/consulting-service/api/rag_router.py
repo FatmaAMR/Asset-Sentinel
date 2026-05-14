@@ -80,3 +80,18 @@ async def status():
         }
     except Exception as exc:
         return {"status": "error", "detail": str(exc)}
+
+from services.llm_client import LLMClient
+
+@router.post("/switch-model")
+async def switch_model(model_key: str):
+    """
+    Tell master-llm-service to switch its active model.
+    Example: POST /rag/switch-model?model_key=qwen2.5-1.5b
+    """
+    llm = LLMClient()
+    try:
+        result = await llm.switch_model(model_key)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

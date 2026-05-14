@@ -30,16 +30,10 @@ class Settings(BaseSettings):
     embed_model:       str = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
     embed_batch_size:  int = int(os.getenv("EMBED_BATCH_SIZE", "64"))
 
-    # ── Ollama / LLM ──────────────────────────────────────────────────────────
-    ollama_url:        str = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    ollama_model:      str = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
-    llama_timeout:     int = int(os.getenv("LLAMA_TIMEOUT", "120"))
-
-    # LLM generation options
-    llm_temperature:   float = float(os.getenv("LLM_TEMPERATURE", "0.1"))
-    llm_num_predict:   int   = int(os.getenv("LLM_NUM_PREDICT", "1024"))
-    llm_num_ctx:       int   = int(os.getenv("LLM_NUM_CTX", "4096"))
-    llm_repeat_penalty:float = float(os.getenv("LLM_REPEAT_PENALTY", "1.1"))
+    # ── master-llm-service ────────────────────────────────────────────────────
+    master_llm_url:    str   = os.getenv("MASTER_LLM_URL",       "http://localhost:8000")
+    master_llm_key:    str   = os.getenv("MASTER_LLM_ADMIN_KEY", "changeme")
+    llm_timeout:       int   = int(os.getenv("LLM_TIMEOUT",      "120"))
 
     # ── RAG ───────────────────────────────────────────────────────────────────
     rag_top_k:         int = int(os.getenv("RAG_TOP_K", "5"))
