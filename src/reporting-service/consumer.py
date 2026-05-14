@@ -3,46 +3,74 @@
 import json
 import logging
 import os
-import signal
+
 import sys
 from dotenv import load_dotenv
 from pathlib import Path
+from datetime import datetime, timezone
 import pika
 
-# 1. Load environment variables
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+# ── 1. Load environment variables ────────────────────────────────────────────
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
-# 2. Silence internal pika logs
+# ── 2. Silence internal pika logs ────────────────────────────────────────────
 logging.getLogger("pika").setLevel(logging.WARNING)
 
-# 3. Configure logging format
+# ── 3. Configure logging ─────────────────────────────────────────────────────
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format='%(levelname)s:%(name)s:%(message)s'
 )
 logger = logging.getLogger(__name__)
 
-RABBITMQ_URL = os.getenv("RABBITMQ_URL")
-FORECASTING_EXCHANGE = os.getenv("FORECASTING_EXCHANGE", "forecasting_exchange")
-EQUIPMENT_STATUS_QUEUE = os.getenv("EQUIPMENT_STATUS_QUEUE", "equipment.status")
+# ── 4. RabbitMQ config ───────────────────────────────────────────────────────
+RABBITMQ_URL              = os.getenv("RABBITMQ_URL")
+FORECASTING_EXCHANGE      = os.getenv("FORECASTING_EXCHANGE", "forecasting_exchange")
+EQUIPMENT_STATUS_QUEUE    = os.getenv("EQUIPMENT_STATUS_QUEUE", "equipment.status")
 EQUIPMENT_STATUS_ROUTING_KEY = os.getenv("EQUIPMENT_STATUS_ROUTING_KEY", "equipment.status")
+
+# ── 5. MongoDB ────────────────────────────────────────────────────────────────
+# Import here so startup fails fast if pymongo is missing
+try:
+    from db.connection import get_collection
+except ImportError:
+    logger.error("pymongo not installed. Run: pip install pymongo[srv]")
+    sys.exit(1)
+
+
+def _build_document(message_id: str, data: dict) -> dict:
+    """Map the incoming RabbitMQ message to a MongoDB document."""
+    return {
+        # Required field for MongoDB time-series collection
+        "timestamp":  datetime.now(timezone.utc),
+        "message_id": message_id,
+        "machine_id": data.get("machine_id"),
+        "label":      data.get("label"),
+        "rul":        data.get("rul"),
+        # Store the full payload for reference
+        "raw":        data,
+    }
 
 
 def handle_status(ch, method, properties, body) -> None:
-    """Processes a single message and logs a clean summary."""
-    message_id = properties.message_id or "unknown"
+    """Process a single RabbitMQ message and persist it to MongoDB."""
+    message_id = (properties.message_id or "unknown") if properties else "unknown"
     try:
         data = json.loads(body)
-        
-        # Log only the essential info (Machine ID, Label, and RUL)
-        # We skip 'window_sliding' to keep the console clean
+
+        # ── Persist to MongoDB ────────────────────────────────────────────────
+        doc        = _build_document(message_id, data)
+        collection = get_collection()
+        result     = collection.insert_one(doc)
+
         logger.info(
-            f"[STATUS] message={message_id} | "
+            f"[SAVED] mongo_id={result.inserted_id} | "
+            f"message={message_id} | "
             f"machine={data.get('machine_id')} | "
             f"label={data.get('label')} | "
             f"rul={data.get('rul')}"
         )
-        
+
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as exc:
@@ -56,16 +84,23 @@ def start() -> None:
         return
 
     params = pika.URLParameters(RABBITMQ_URL)
-    
+
     try:
         connection = pika.BlockingConnection(params)
-        channel = connection.channel()
+        channel    = connection.channel()
 
-        channel.exchange_declare(exchange=FORECASTING_EXCHANGE, exchange_type="direct", durable=True)
-        
-        # Declare the queue and get the initial count
+        channel.exchange_declare(
+            exchange=FORECASTING_EXCHANGE,
+            exchange_type="direct",
+            durable=True
+        )
+
         res = channel.queue_declare(queue=EQUIPMENT_STATUS_QUEUE, durable=True)
-        channel.queue_bind(exchange=FORECASTING_EXCHANGE, queue=EQUIPMENT_STATUS_QUEUE, routing_key=EQUIPMENT_STATUS_ROUTING_KEY )
+        channel.queue_bind(
+            exchange=FORECASTING_EXCHANGE,
+            queue=EQUIPMENT_STATUS_QUEUE,
+            routing_key=EQUIPMENT_STATUS_ROUTING_KEY
+        )
 
         initial_count = res.method.message_count
         if initial_count == 0:
@@ -73,32 +108,34 @@ def start() -> None:
             connection.close()
             return
 
-        logger.info(f"[*] Found {initial_count} messages. Processing...")
+        logger.info(f"[*] Found {initial_count} messages. Saving to MongoDB...")
 
-        # We process messages until the generator stops or times out
-        # Using a 3-second timeout is usually enough to detect "truly empty"
+
+
+        
         for method_frame, properties, body in channel.consume(
-            queue=EQUIPMENT_STATUS_QUEUE, 
-            inactivity_timeout=3 
+
+            queue=EQUIPMENT_STATUS_QUEUE,
+            inactivity_timeout=3
         ):
             if method_frame:
                 handle_status(channel, method_frame, properties, body)
-                
-                # We NO LONGER check message_count here. 
-                # channel.consume will automatically give us the next message 
-                # if one exists.
+
+
             else:
-                # This triggers ONLY when the queue is empty AND 3 seconds have passed
+
                 logger.info("Queue empty and timeout reached. Shutting down...")
                 break
 
-        # Stop consuming and close
+
         channel.cancel()
+
         connection.close()
-        logger.info("✅ Service finished. All messages captured.")
+        logger.info("✅ Service finished. All messages saved to MongoDB.")
 
     except Exception as e:
         logger.error(f"Service Error: {e}")
+
 
 if __name__ == "__main__":
     start()

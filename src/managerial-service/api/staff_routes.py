@@ -27,6 +27,16 @@ async def create_staff(
 ):
     return StaffLogic.add_staff(staff, db) # باصينا الـ db
 
+@router.get("/all")
+async def get_all_staff_internal(db: Session = Depends(get_db)):
+    staff = StaffLogic.list_all_staff(db)
+    return {
+        "users": [
+            {"name": s.full_name, "email": s.email, "role": s.role}
+            for s in staff
+        ]
+    }
+
 # ── أي حد logged in يشوف staff معين ──
 @router.get("/{staff_id}", response_model=StaffResponse)
 async def get_staff_by_id(
@@ -54,3 +64,4 @@ async def delete_staff(
     db: Session = Depends(get_db) # فتح اتصال الداتا بيز
 ):
     return StaffLogic.remove_staff(staff_id, db) # باصينا الـ db
+

@@ -96,16 +96,24 @@ class ProcessingPipeline:
             print(f"  > Status: Transformation complete. Data shape: {transformed_data.shape}")
 
             print("[Step 3/5] AI Inference | Preparing window for Sentinel AI (64, 21)")
-            reshaped = transformed_data.reshape(-1, 21)
-            if reshaped.shape[0] < 64:
-                padding = np.zeros((64 - reshaped.shape[0], 21))
-                prepared_window = np.vstack((padding, reshaped))
-                print(f"  > Info: Padded sequence from {reshaped.shape[0]} to 64")
-            else:
-                prepared_window = reshaped[-64:, :]
+            # transformed_data is (26, 128) — 26 columns x 128 timesteps
+            # Transpose to (128, 26) — timesteps x features
+            window = transformed_data.T  # (128, 26)
+
+            # CMAPSS format: first 5 columns are metadata (unit, time, op_setting_1/2/3)
+            # Drop them to keep only the 21 sensor columns
+            window = window[:, 5:]  # (128, 21)
+
+            # Take last 64 timesteps for the model
+            if window.shape[0] >= 64:
+                prepared_window = window[-64:, :]
                 print(f"  > Info: Truncated sequence to last 64 readings")
-            
-            prepared_window_batch = np.expand_dims(prepared_window, axis=0)
+            else:
+                padding = np.zeros((64 - window.shape[0], 21))
+                prepared_window = np.vstack((padding, window))
+                print(f"  > Info: Padded sequence from {window.shape[0]} to 64")
+
+            prepared_window_batch = np.expand_dims(prepared_window, axis=0)  # (1, 64, 21)
 
             predicted_rul = self.engine.run_inference(
                 machine_id=file_name,
