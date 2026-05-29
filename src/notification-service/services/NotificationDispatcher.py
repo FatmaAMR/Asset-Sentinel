@@ -132,14 +132,15 @@ class NotificationDispatcher:
         print("="*60 + "\n")
 
     async def _fetch_suggestion(self, failure_type: str) -> str:
-        try:
-            async with httpx.AsyncClient() as client:
-                url = f"{self.consulting_endpoint}/{failure_type}"
-                response = await client.get(url, timeout=5.0)
-                return response.json().get("suggestion", "Check machine immediately.")
-        except Exception as e:
-            logger.error(f"Consulting API Error: {e}")
-            return "Standard inspection required (Service Offline)."
+       try:
+        async with httpx.AsyncClient() as client:
+            payload = {"question": f"What should I do for a {failure_type} failure?"}
+            response = await client.post(self.consulting_endpoint, json=payload, timeout=10.0)
+            return response.json().get("answer", "Check machine immediately.")
+       except Exception as e:
+        logger.error(f"Consulting API Error: {e}")
+        return "Standard inspection required (Service Offline)."
+
 
     async def _fetch_system_users(self) -> list:
         try:

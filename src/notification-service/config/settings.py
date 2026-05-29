@@ -52,7 +52,7 @@ class Settings:
     # --- Derived Full Endpoints ---
     @property
     def consulting_api_url(self) -> str:
-        return f"{self.CONSULTING_SERVICE_BASE_URL}/suggestion"
+     return f"{self.CONSULTING_SERVICE_BASE_URL}/rag/ask"
 
     @property
     def managerial_api_url(self) -> str:
