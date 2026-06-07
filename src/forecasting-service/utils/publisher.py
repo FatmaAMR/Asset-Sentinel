@@ -1,9 +1,12 @@
+import json
 import logging
+import time
+from typing import Any, Dict
+
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
 
 from config.settings import settings
-from schemas.models import ForecastingResult
 
 # --- 1. SILENCE PIKA LOGS ---
 logging.getLogger("pika").setLevel(logging.WARNING)
@@ -63,43 +66,66 @@ class ForecastingPublisher:
             logger.error(f"❌ Failed to connect: {exc}")
             raise
 
-    def publish(self, result: ForecastingResult) -> None:
+    def publish(self, payload: Dict[str, Any]) -> None:
         if not self._channel:
             raise RuntimeError("Not connected to RabbitMQ")
 
-        # Always publish to status
+        # Always publish the full status payload
         self._publish_to(
             routing_key=settings.EQUIPMENT_STATUS_ROUTING_KEY,
-            result=result,
+            payload=payload,
+            queue_name=settings.EQUIPMENT_STATUS_QUEUE,
         )
 
-        # Alerts only for warnings/critical
-        if result.label in ("warning", "critical"):
+        # Publish to the alerts queue only when should_alert is explicitly false
+        if self._should_publish_alert(payload):
             self._publish_to(
                 routing_key=settings.ALERTS_ROUTING_KEY,
-                result=result,
+                payload=payload,
+                queue_name=settings.ALERTS_QUEUE,
             )
 
-    def _publish_to(self, routing_key: str, result: ForecastingResult) -> None:
+    def _should_publish_alert(self, payload: Dict[str, Any]) -> bool:
+        # Publish to alerts only when `should_alert` is explicitly True
+        return payload.get("labels", {}).get("should_alert") is True
+
+    def _serialize_payload(self, payload: Dict[str, Any]) -> bytes:
+        return json.dumps(payload).encode("utf-8")
+
+    def _publish_to(self, routing_key: str, payload: Dict[str, Any], queue_name: str) -> None:
         try:
+            body = self._serialize_payload(payload)
+            message_id = payload.get("metadata", {}).get("message_id", "unknown")
+            should_alert = payload.get("labels", {}).get("should_alert")
+
             self._channel.basic_publish(
                 exchange=settings.FORECASTING_EXCHANGE,
                 routing_key=routing_key,
-                body=result.to_bytes(),
+                body=body,
                 properties=pika.BasicProperties(
                     delivery_mode=2,
-                    message_id=result.message_id,
-                    timestamp=int(result.timestamp),
+                    message_id=message_id,
+                    timestamp=self._extract_timestamp(payload),
                 ),
             )
             self.published_count += 1
-            
-            # --- 2. CLEAN SUCCESS MESSAGE ---
-            print(f"🚀 Published Successfully | ID: {result.message_id} | Key: {routing_key} | Label: {result.label}")
-            
+            print(
+                f"🚀 Published Successfully | Queue: {queue_name} | ID: {message_id} | RoutingKey: {routing_key} | should_alert: {should_alert}"
+            )
+
         except Exception as exc:
-            logger.error(f"❌ Failed to publish {result.message_id}: {exc}")
+            logger.error(f"❌ Failed to publish {message_id}: {exc}")
             raise
+
+    def _extract_timestamp(self, payload: Dict[str, Any]) -> int:
+        raw_timestamp = payload.get("metadata", {}).get("timestamp", 0)
+        if isinstance(raw_timestamp, (int, float)):
+            return int(raw_timestamp)
+
+        try:
+            return int(float(raw_timestamp))
+        except (TypeError, ValueError):
+            return int(time.time())
 
     def close(self) -> None:
         try:

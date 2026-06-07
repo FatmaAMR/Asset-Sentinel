@@ -20,7 +20,7 @@ class Settings:
     print(f"Files inside raw folder: {os.listdir(DATA_DIR)}")
     RABBITMQ_URL = os.getenv(
         "RABBITMQ_URL",
-        "amqps://burraqtq:yFx0LDD76FrrDRFLhd2Wk_R68YfwhG00@cow.rmq2.cloudamqp.com/burraqtq"
+        "amqps://epnwrxps:FJDX9jCp6ng-bHYxHocDRsYbBqsJ6yP3@cow.rmq2.cloudamqp.com/epnwrxps"
     )
     RABBITMQ_EXCHANGE = os.getenv("RABBITMQ_EXCHANGE", "motor_exchange")
     RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE", "motor.raw")
@@ -32,7 +32,7 @@ class Settings:
     extensions = os.getenv("EXTENSIONS", "csv,txt").split(",")
     HAS_HEADER = os.getenv("HAS_HEADER", "true").lower() == "true"
     CSV_DELIMITER = os.getenv("CSV_DELIMITER", ",")
-    WINDOW_SIZE = int(os.getenv("WINDOW_SIZE", 128))
+    WINDOW_SIZE = int(os.getenv("WINDOW_SIZE", 64))
     WINDOW_STEP = int(os.getenv("WINDOW_STEP", 64))
 
     MAX_RETRIES = int(os.getenv("MAX_RETRIES", 3))

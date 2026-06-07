@@ -13,7 +13,8 @@ class Settings:
     # RabbitMQ Connection (CloudAMQP)
     RABBITMQ_URL = os.getenv(
         "RABBITMQ_URL",
-        "amqps://burraqtq:yFx0LDD76FrrDRFLhd2Wk_R68YfwhG00@cow.rmq2.cloudamqp.com/burraqtq"
+       "amqps://epnwrxps:FJDX9jCp6ng-bHYxHocDRsYbBqsJ6yP3@cow.rmq2.cloudamqp.com/epnwrxps"
+        # "amqps://burraqtq:yFx0LDD76FrrDRFLhd2Wk_R68YfwhG00@cow.rmq2.cloudamqp.com/burraqtq"
     )
 
     # Consuming from motor_dynamic

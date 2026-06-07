@@ -50,24 +50,27 @@ class SensorConsumer:
             self._channel.basic_qos(prefetch_count=1)
 
             # Declare the exchange and queue
+            logger.info(f"Declaring exchange: {settings.MOTOR_EXCHANGE} (type: direct)")
             self._channel.exchange_declare(
-                exchange=settings.RABBITMQ_EXCHANGE,
+                exchange=settings.MOTOR_EXCHANGE,
                 exchange_type='direct',
                 durable=True,
             )
+            logger.info(f"Declaring queue: {settings.MOTOR_QUEUE}")
             self._channel.queue_declare(
-                queue=settings.RABBITMQ_QUEUE,
+                queue=settings.MOTOR_QUEUE,
                 durable=True,
             )
+            logger.info(f"Binding queue {settings.MOTOR_QUEUE} to exchange {settings.MOTOR_EXCHANGE} with routing key {settings.MOTOR_ROUTING_KEY}")
             self._channel.queue_bind(
-                exchange=settings.RABBITMQ_EXCHANGE,
-                queue=settings.RABBITMQ_QUEUE,
-                routing_key=settings.RABBITMQ_ROUTING_KEY,
+                exchange=settings.MOTOR_EXCHANGE,
+                queue=settings.MOTOR_QUEUE,
+                routing_key=settings.MOTOR_ROUTING_KEY,
             )
 
-            logger.info(f"Connected to RabbitMQ and declared queue: {settings.RABBITMQ_QUEUE}")
+            logger.info(f"Connected to RabbitMQ and declared queue: {settings.MOTOR_QUEUE}")
         except Exception as exc:
-            logger.error(f"Failed to connect to RabbitMQ: {exc}")
+            logger.error(f"Failed to connect to RabbitMQ: {exc}", exc_info=True)
             raise
 
     def close(self) -> None:  # Added missing method
@@ -82,6 +85,8 @@ class SensorConsumer:
         finally:
             self._channel = None
             self._connection = None
+            if getattr(self.pipeline, "publisher", None) is not None:
+                self.pipeline.publisher.close()
 
     def start_consuming(self) -> None:
         if not self._channel:
@@ -93,10 +98,17 @@ class SensorConsumer:
             properties: pika.spec.BasicProperties,
             body: bytes,
         ) -> None:
+            logger.info(f"[CALLBACK TRIGGERED] Received message, delivery_tag: {method.delivery_tag}")
+            
+            if self._shutdown:
+                # Stop consuming when shutdown flag is set
+                ch.stop_consuming()
+                return
+                
             try:
                 # Deserialize message
                 envelope = MessageEnvelope.from_bytes(body)
-                logger.debug(f"[{envelope.message_id}] Received message")
+                logger.info(f"[CALLBACK] Message ID: {envelope.message_id} deserialized successfully")
 
                 # Process via pipeline
                 result = self.pipeline.process(envelope.to_dict())
@@ -110,29 +122,35 @@ class SensorConsumer:
 
                 # Acknowledge message
                 ch.basic_ack(delivery_tag=method.delivery_tag)
+                logger.info(f"[CALLBACK] Message acknowledged: {method.delivery_tag}")
 
             except Exception as exc:
-                logger.error(f"Error processing message: {exc}")
+                logger.error(f"[CALLBACK ERROR] Error processing message: {exc}", exc_info=True)
                 self.failed_count += 1
                 # Reject and requeue message
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
         try:
+            logger.info(f"About to register callback for queue: {settings.MOTOR_QUEUE}")
             self._channel.basic_consume(
-                queue=settings.RABBITMQ_QUEUE,
+                queue=settings.MOTOR_QUEUE,
                 on_message_callback=callback,
+                auto_ack=False,
             )
             logger.info("Started consuming messages...")
+            logger.info("Calling channel.start_consuming() - this will block until messages arrive or shutdown")
+            self._channel.start_consuming()
+            logger.info("[CONSUMER] start_consuming returned normally")
 
-            while not self._shutdown:
-                self._channel.connection.process_data_events(time_limit=1)
-
-        except Exception as exc:
-            logger.error(f"Consumer error: {exc}")
-            raise
+        except (KeyboardInterrupt, Exception) as exc:
+            logger.warning(f"Consumer interrupted: {type(exc).__name__}: {exc}", exc_info=True)
+            if self._channel and self._channel.is_open:
+                self._channel.stop_consuming()
 
     def stop_consuming(self) -> None:
         self._shutdown = True
+        if self._channel and self._channel.is_open:
+            self._channel.stop_consuming()
         logger.info(f"Consumer stopped - Processed: {self.processed_count}, Failed: {self.failed_count}")
 
     def get_stats(self) -> Dict[str, Any]:
@@ -144,9 +162,12 @@ def run_consumer() -> None:
     consumer = SensorConsumer()
 
     def signal_handler(signum: int, frame: Any) -> None:
-        logger.info("Received shutdown signal")
-        consumer.stop_consuming()
+        logger.info("Received shutdown signal, stopping consumer...")
+        consumer._shutdown = True
+        if consumer._channel and consumer._channel.is_open:
+            consumer._channel.stop_consuming()
 
+    # Register signal handlers AFTER creating consumer
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 

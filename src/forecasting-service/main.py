@@ -15,7 +15,7 @@ logger = logging.getLogger("forecasting_service")
 def main() -> None:
     logger.info("Starting forecasting-service consumer")
     logger.info(f"RabbitMQ URL: {settings.RABBITMQ_URL[:50]}...")
-    logger.info(f"Queue: {settings.RABBITMQ_QUEUE}")
+    logger.info(f"Queue: {settings.MOTOR_QUEUE}")
     run_consumer()
 
 
