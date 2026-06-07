@@ -13,10 +13,8 @@ db_manager = DatabaseManager()
 # 3. Now you can use @router
 @router.get("/ask")
 async def ask_question(question: str):
-    # Format the prompt with the dynamic schema
     formatted_instruction = SQL_SYSTEM_TEMPLATE.format(schema=CURRENT_DATABASE_SCHEMA)
     
-    # Get SQL from the Master/Mock service
     sql_query = await logic.get_llm_response(
         system_instruction=formatted_instruction,
         user_input=question
@@ -25,7 +23,10 @@ async def ask_question(question: str):
     if not sql_query:
         raise HTTPException(status_code=500, detail="Failed to generate SQL query")
 
-    # Execute against your Mock DB
+    # Strip markdown code fences
+    import re
+    sql_query = re.sub(r"```(?:sql)?\s*", "", sql_query).strip()
+
     try:
         data = db_manager.execute_query(sql_query)
         return {

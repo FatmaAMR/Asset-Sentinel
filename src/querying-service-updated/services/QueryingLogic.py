@@ -1,12 +1,3 @@
-# Legacy implementation removed.
-# QueryingLogic now delegates to LLMClient (see below).
-
-
-
-
-
-
-
 import logging
 from utils.llm_client import LLMClient
 
@@ -19,18 +10,9 @@ class QueryingLogic:
         self.llm = LLMClient()
 
     async def get_llm_response(self, system_instruction: str, user_input: str) -> str | None:
-        """
-        Send a natural-language question to master-llm-service and get back
-        a raw SQL string.
 
-        Maps the old (system_instruction, user_input) contract onto LLMClient:
-          - system_instruction  → system_prompt
-          - user_input          → prompt
-          - caller              → "querying"
-          - temperature         → 0.1  (deterministic SQL generation)
-        """
         logger.info("[QueryingLogic] Sending request to master-llm-service /generate")
-        logger.debug("[QueryingLogic] user_input: %s...", user_input[:80])
+
 
         try:
             sql = await self.llm.generate(
