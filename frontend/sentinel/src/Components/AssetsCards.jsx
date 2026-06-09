@@ -3,28 +3,22 @@ import useAssetStore from '../stores/assetStore';
 
 const statusConfig = {
   Critical: {
-    border: 'border-2 border-failure/30',
-    badge: 'bg-failure/10 text-failure',
+    badge: 'bg-red-50 text-failure border border-red-100',
     icon: 'flash_on',
-    iconBg: 'bg-failure/10',
-    iconColor: 'text-failure',
-    vibrationColor: 'text-failure',
+    iconBg: 'bg-red-50 text-failure',
+    metricsColor: 'text-failure font-semibold',
   },
   Warning: {
-    border: 'border-2 border-warning/30',
-    badge: 'bg-warning/10 text-warning',
+    badge: 'bg-amber-50 text-warning border border-amber-100',
     icon: 'precision_manufacturing',
-    iconBg: 'bg-warning/10',
-    iconColor: 'text-warning',
-    vibrationColor: 'text-warning',
+    iconBg: 'bg-amber-50 text-warning',
+    metricsColor: 'text-warning font-semibold',
   },
   Normal: {
-    border: 'border border-gray-100',
-    badge: 'bg-normal/10 text-normal',
+    badge: 'bg-emerald-50 text-normal border border-emerald-100',
     icon: 'settings_input_component',
-    iconBg: 'bg-normal/10',
-    iconColor: 'text-normal',
-    vibrationColor: 'font-medium',
+    iconBg: 'bg-emerald-50 text-normal',
+    metricsColor: 'text-normal font-semibold',
   },
 };
 
@@ -35,7 +29,7 @@ export default function AssetsCard() {
     fetchFactorySummary();
   }, []);
 
-  if (loading) return <p className="text-slate-400 text-sm">Loading machines...</p>;
+  if (loading) return <p className="text-muted text-sm">Loading machines...</p>;
 
   const machines = factorySummary?.machines_details ?? [];
 
@@ -46,28 +40,35 @@ export default function AssetsCard() {
         return (
           <div
             key={machine.machine_id}
-            className={`bg-cards-light p-5 rounded-3xl shadow-sm hover:shadow-md transition-shadow ${config.border}`}
+            className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.03)] hover:shadow-[0_4px_20px_rgba(15,23,42,0.06)] transition-all duration-200"
           >
-            <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 ${config.iconBg} rounded-2xl`}>
-                <span className={`material-icons-round ${config.iconColor}`}>{config.icon}</span>
+            {/* Header: Soft colored icon box and clean tag */}
+            <div className="flex justify-between items-center mb-5">
+              <div className={`p-2 rounded-xl ${config.iconBg}`}>
+                <span className="material-icons-round text-xl block">{config.icon}</span>
               </div>
-              <span className={`${config.badge} text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider`}>
+              <span className={`${config.badge} text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider`}>
                 {machine.status}
               </span>
             </div>
-            <h4 className="font-bold text-lg">{machine.machine_id}</h4>
-            <p className="text-xs text-slate-500 mb-6">RUL: {machine.current_rul_days} days</p>
-            <div className="space-y-3">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Vibration RMS</span>
-                <span className={`font-mono font-medium ${config.vibrationColor}`}>
+
+            {/* Typography */}
+            <h4 className="font-bold text-lg text-light tracking-tight mb-0.5">{machine.machine_id}</h4>
+            <p className="text-xs text-muted mb-5">RUL: <span className="font-medium text-light">{machine.current_rul_days} days</span></p>
+            
+            {/* Stats Dividers */}
+            <div className="space-y-3 pt-3 border-t border-slate-100">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted">Vibration RMS</span>
+                <span className={`font-mono ${config.metricsColor}`}>
                   {machine.avg_vibration} mm/s
                 </span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Avg Temperature</span>
-                <span className="font-mono font-medium">{machine.avg_temperature}°C</span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted">Avg Temperature</span>
+                <span className="font-mono font-semibold text-light">
+                  {machine.avg_temperature}°C
+                </span>
               </div>
             </div>
           </div>

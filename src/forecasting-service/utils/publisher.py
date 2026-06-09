@@ -87,7 +87,10 @@ class ForecastingPublisher:
 
     def _should_publish_alert(self, payload: Dict[str, Any]) -> bool:
         # Publish to alerts only when `should_alert` is explicitly True
-        return payload.get("labels", {}).get("should_alert") is True
+        labels = payload.get("labels")
+        if isinstance(labels, dict) and "should_alert" in labels:
+            return labels.get("should_alert") is True
+        return payload.get("should_alert") is True
 
     def _serialize_payload(self, payload: Dict[str, Any]) -> bytes:
         return json.dumps(payload).encode("utf-8")
@@ -95,8 +98,9 @@ class ForecastingPublisher:
     def _publish_to(self, routing_key: str, payload: Dict[str, Any], queue_name: str) -> None:
         try:
             body = self._serialize_payload(payload)
-            message_id = payload.get("metadata", {}).get("message_id", "unknown")
-            should_alert = payload.get("labels", {}).get("should_alert")
+            message_id = payload.get("metadata", {}).get("message_id", payload.get("message_id", "unknown"))
+            labels = payload.get("labels")
+            should_alert = labels.get("should_alert") if isinstance(labels, dict) else payload.get("should_alert")
 
             self._channel.basic_publish(
                 exchange=settings.FORECASTING_EXCHANGE,

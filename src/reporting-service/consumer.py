@@ -40,15 +40,38 @@ except ImportError:
 
 def _build_document(message_id: str, data: dict) -> dict:
     """Map the incoming RabbitMQ message to a MongoDB document."""
+    metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
+    labels = data.get("labels", {}) if isinstance(data, dict) else {}
+
+    machine_id = (
+        data.get("machine_id")
+        or metadata.get("file_name")
+        or metadata.get("machine_id")
+    )
+
+    rul_value = (
+        data.get("rul")
+        or data.get("predicted_rul")
+        or labels.get("predicted_rul")
+    )
+
+    label_value = (
+        data.get("label")
+        or data.get("alert_level")
+        or labels.get("health_state")
+        or labels.get("status")
+        or labels.get("alert_level")
+    )
+
     return {
         # Required field for MongoDB time-series collection
-        "timestamp":  datetime.now(timezone.utc),
+        "timestamp": datetime.now(timezone.utc),
         "message_id": message_id,
-        "machine_id": data.get("machine_id"),
-        "label":      data.get("label"),
-        "rul":        data.get("rul"),
+        "machine_id": machine_id,
+        "label": label_value,
+        "rul": rul_value,
         # Store the full payload for reference
-        "raw":        data,
+        "raw": data,
     }
 
 

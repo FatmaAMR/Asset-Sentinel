@@ -29,41 +29,34 @@ ProtectedRoute.propTypes = {
 
 export default function App() {
   return (
-    <div className="bg-light min-h-screen text-slate-900">
+    // bg-dark is now light-slate; text-light is now crisp charcoal-navy
+    <div className="bg-dark min-h-screen text-light antialiased selection:bg-primary/10">
       <Navbar />
 
       <Routes>
-    
         <Route
           path="/"
           element={
             <main className="max-w-[1440px] mx-auto px-6 py-8">
               <StatusCard />
-              <div className="grid grid-cols-12 gap-8">
+              <div className="grid grid-cols-12 gap-8 mt-6">
                 <div className="col-span-12 lg:col-span-9 space-y-8">
                   <AssetsCard />
                   <VibrationStream />
                 </div>
                 <div className="col-span-12 lg:col-span-3">
                   <AlertsSidebar />
-
                 </div>
-
               </div>
             </main>
           }
         />
-
-  
         <Route path="/diagnosis" element={<AssetDiagnosis />} />
         <Route path="/knowledge" element={<KnowledgeBase />} />
         <Route path="/history" element={<HistoryTrends />} />
-
         <Route path="/config" element={<Config />} />
         <Route path="/export" element={<ExportReport />} />
-
         <Route path="/login" element={<Login />} />
-
         <Route path="/assets" element={<ProtectedRoute><Assets /></ProtectedRoute>} />
         <Route path="/thresholds" element={<ProtectedRoute><Thresholds /></ProtectedRoute>} />
       </Routes>
@@ -71,5 +64,4 @@ export default function App() {
       <Footer />
     </div>
   );
-
 }

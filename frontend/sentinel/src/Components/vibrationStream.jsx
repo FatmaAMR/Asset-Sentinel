@@ -36,51 +36,56 @@ export default function VibrationStream() {
   const kurtosis = calcKurtosis(data);
 
   return (
-    <section className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden mt-8">
+    // Changed bg-slate-900 to white, changed text-white to text-light, and softened the rounded corners to match standard cards
+    <section className="bg-white rounded-2xl p-6 text-light border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.03)] mt-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <span className="w-3 h-3 bg-failure rounded-full animate-pulse" />
+          <h2 className="text-xl font-bold flex items-center gap-2 tracking-tight text-light">
+            <span className="w-2.5 h-2.5 bg-failure rounded-full animate-pulse" />
             Live Vibration Stream
           </h2>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-muted text-xs mt-0.5">
             Real-time spectral analysis for {MACHINE_ID}
           </p>
         </div>
-        <span className="bg-slate-800 text-slate-300 text-[10px] px-3 py-1.5 rounded-full border border-slate-700">
+        {/* Adjusted the pill badge for a cleaner light-mode look */}
+        <span className="bg-slate-50 text-muted text-[10px] font-semibold px-3 py-1 rounded-lg border border-slate-200/60 uppercase tracking-wider">
           60FPS LOW LATENCY
         </span>
       </div>
 
       {loading ? (
-        <p className="text-slate-400 text-sm">Loading stream data...</p>
+        <p className="text-muted text-sm">Loading stream data...</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           {/* Time Domain — Vibration */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-4">
               Time Domain (Velocity mm/s)
             </p>
-            <div className="h-40 flex items-end gap-1">
+            {/* Added a subtle light background to chart channels for a cleaner blueprint look */}
+            <div className="h-40 flex items-end gap-1 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
               {data.map((d, i) => (
                 <div
                   key={i}
-                  className="flex-1 bg-primary rounded-t-sm transition-all duration-500"
-                  style={{ height: `${(d.vibration / maxVibration) * 100}%`, opacity: 0.4 + (d.vibration / maxVibration) * 0.6 }}
+                  className="flex-1 bg-primary rounded-t-[2px] transition-all duration-500"
+                  style={{ height: `${(d.vibration / maxVibration) * 100}%`, opacity: 0.6 + (d.vibration / maxVibration) * 0.4 }}
                 />
               ))}
             </div>
           </div>
+          
+          {/* FFT Spectrum */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-4">
               FFT Spectrum (Temperature °C)
             </p>
-            <div className="h-40 flex items-end gap-1">
+            <div className="h-40 flex items-end gap-1 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
               {data.map((d, i) => (
                 <div
                   key={i}
-                  className="flex-1 bg-warning rounded-t-sm transition-all duration-500"
-                  style={{ height: `${(d.temperature / maxTemp) * 100}%`, opacity: 0.4 + (d.temperature / maxTemp) * 0.6 }}
+                  className="flex-1 bg-warning rounded-t-[2px] transition-all duration-500"
+                  style={{ height: `${(d.temperature / maxTemp) * 100}%`, opacity: 0.6 + (d.temperature / maxTemp) * 0.4 }}
                 />
               ))}
             </div>
@@ -88,32 +93,29 @@ export default function VibrationStream() {
         </div>
       )}
 
-
-
-
-
-
-      <div className="mt-8 pt-8 border-t border-slate-800 flex flex-wrap gap-8">
+      {/* Footer Data Metrics */}
+      <div className="mt-8 pt-6 border-t border-slate-100 flex flex-wrap items-center gap-8">
         <div>
-          <span className="block text-slate-500 text-[10px] font-bold uppercase mb-1">Crest Factor</span>
-          <span className="text-xl font-mono">{crestFactor}</span>
+          <span className="block text-muted text-[10px] font-bold uppercase mb-0.5 tracking-wider">Crest Factor</span>
+          <span className="text-lg font-mono font-bold text-light">{crestFactor}</span>
         </div>
         <div>
-          <span className="block text-slate-500 text-[10px] font-bold uppercase mb-1">Kurtosis</span>
-          <span className="text-xl font-mono">{kurtosis}</span>
+          <span className="block text-muted text-[10px] font-bold uppercase mb-0.5 tracking-wider">Kurtosis</span>
+          <span className="text-lg font-mono font-bold text-light">{kurtosis}</span>
         </div>
         <div>
-          <span className="block text-slate-500 text-[10px] font-bold uppercase mb-1">Temperature</span>
-          <span className="text-xl font-mono text-normal">{latestTemp}°C</span>
+          <span className="block text-muted text-[10px] font-bold uppercase mb-0.5 tracking-wider">Temperature</span>
+          <span className="text-lg font-mono font-bold text-normal">{latestTemp}°C</span>
         </div>
+        
+        {/* Action Button Segment */}
         <div className="ml-auto flex items-center gap-4">
-          <span className="text-xs text-slate-400">AI analysis running on local edge...</span>
-          <button className="bg-white text-slate-900 px-6 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all">
+          <span className="text-xs text-muted font-medium hidden sm:inline">AI analysis running on local edge...</span>
+          <button className="bg-primary text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-primary/90 hover:shadow-md active:scale-95 transition-all">
             Capture Snapshot
           </button>
         </div>
       </div>
-
     </section>
   );
 }

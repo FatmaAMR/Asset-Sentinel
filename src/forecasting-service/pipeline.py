@@ -17,12 +17,14 @@ try:
     from services.logic import SensorLogic
     from services.verification import SensorValidator
     from services.disptcher import dispatch, ThresholdConfig, AlertLevel
+    from utils.publisher import ForecastingPublisher
 except ImportError as e:
     sys.path.insert(0, str(service_root))
     from services.forecasting_engine import ForecastingEngine
     from services.logic import SensorLogic
     from services.verification import SensorValidator
     from services.disptcher import dispatch, ThresholdConfig, AlertLevel
+    from utils.publisher import ForecastingPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,12 @@ class ProcessingPipeline:
         self.validator = SensorValidator(scaler_path=str(scaler_file))
         self.engine = ForecastingEngine(base_weights_path=str(base_weights), assets_dir=str(current_service_dir / "assets"))
         self.logic = SensorLogic()
+        self.publisher = ForecastingPublisher()
+        try:
+            self.publisher.connect()
+        except Exception as exc:
+            logger.error(f"Unable to connect ForecastingPublisher: {exc}")
+            self.publisher = None
         
         self.fleet_historical_buffers: Dict[str, List[np.ndarray]] = {}
         print("[System Launcher] V3 Core LSTM Components Successfully Integrated.")
@@ -54,33 +62,37 @@ class ProcessingPipeline:
         record = message.get("record", {})
         machine_id = record.get("file_name", "unknown_asset")
         machine_type = message.get("machine_type", "base_type")
-        
+        raw_telemetry_packet = record.get("data", {})
+
         print(f"\n>>> [Pipeline Input Received] Message ID: {message_id} | Tracking ID: {machine_id}")
 
         try:
-            # Step 1: Real-time Feature Extraction and Normalization via telemetry_scaler
-            raw_telemetry_packet = record.get("data", {})
+
             scaled_row, errors = self.validator.process_and_scale_features(raw_telemetry_packet)
-            
+
             if errors or scaled_row is None:
                 raise ValueError(f"Feature processing architecture exceptions raised: {errors}")
 
-            # Step 2: Manage Sliding Window Buffers per individual Asset ID
+            expected_features = len(self.validator.ACTIVE_FEATURES)
+            if scaled_row.shape[0] != expected_features:
+                raise ValueError(
+                    f"Feature vector length mismatch: expected {expected_features}, got {scaled_row.shape[0]}"
+                )
+
             if machine_id not in self.fleet_historical_buffers:
                 self.fleet_historical_buffers[machine_id] = []
-                
+
             self.fleet_historical_buffers[machine_id].append(scaled_row)
-            
+
             if len(self.fleet_historical_buffers[machine_id]) > 64:
                 self.fleet_historical_buffers[machine_id].pop(0)
 
-            # Step 3: Handle Zero-Padding structures during early initial start-up loops
+
             current_history_len = len(self.fleet_historical_buffers[machine_id])
-            current_window_stack = np.array(self.fleet_historical_buffers[machine_id])
-            
+            current_window_stack = np.array(self.fleet_historical_buffers[machine_id], dtype=np.float32)
             if current_history_len < 64:
                 pad_width = 64 - current_history_len
-                padding = np.zeros((pad_width, len(self.validator.ACTIVE_FEATURES)))
+                padding = np.zeros((pad_width, expected_features), dtype=np.float32)
                 prepared_window = np.vstack((padding, current_window_stack))
             else:
                 prepared_window = current_window_stack
@@ -95,31 +107,24 @@ class ProcessingPipeline:
             )
             print(f"  > AI Core Inference Response: Predicted RUL = {predicted_rul:.2f} Cycles.")
 
-            # Step 5: Automated Post-Alert XAI Diagnostic Triggers Loop Condition
             xai_diagnostic_payload = None
-            
             PRODUCTION_THRESHOLD = 45.0
             if predicted_rul <= PRODUCTION_THRESHOLD and current_history_len >= 64:
                 print(f"  > 🚨 [CRITICAL ALERT TRIGGERED] Safety Bound Breached! Extracting Gradient Saliency...")
-                
-                # Fetch the active trained neural model instance from engine dynamically
-                active_model_nn = self.engine._get_model_instance(machine_type, len(self.validator.ACTIVE_FEATURES))
-                
-                # CRUCIAL FIX: Pass active_model_nn as the first parameter
+                active_model_nn = self.engine._get_model_instance(machine_type, expected_features)
                 xai_result = self.validator.execute_xai_root_cause_analysis(
-                    model_engine=active_model_nn, 
-                    window_matrix=prepared_window, 
+                    model_engine=active_model_nn,
+                    window_matrix=prepared_window,
                     threshold_value=PRODUCTION_THRESHOLD
                 )
                 xai_diagnostic_payload = asdict(xai_result)
                 print(f"  > XAI Isolation Complete. Primary Target Source: {xai_diagnostic_payload['mapped_mechanical_subsystem']}")
-                
-            # Step 6: Package Response payloads for Downstream Brokers
+
             prediction_payload = {
                 "predicted_rul": float(predicted_rul),
                 "machine_id": machine_id,
                 "machine_type": machine_type,
-                "confidence": 0.99 if current_history_len >= 64 else 0.40,  # High production score for locked sequences
+                "confidence": 0.99 if current_history_len >= 64 else 0.40,
                 "alert_level": "CRITICAL" if (predicted_rul <= PRODUCTION_THRESHOLD and current_history_len >= 64) else "HEALTHY",
                 "xai_root_cause_diagnosis": xai_diagnostic_payload
             }
@@ -143,11 +148,39 @@ class ProcessingPipeline:
             print("=" * 60 + "\n")
             # -------------------------------------------------------------------------
             
+            try:
+                dispatch_decision = dispatch(processed_prediction)
+                processed_prediction.update(
+                    mean_rul=dispatch_decision.mean_rul,
+                    failure_type=dispatch_decision.failure_type,
+                    message=dispatch_decision.message,
+                    should_alert=dispatch_decision.should_alert,
+                    channels=dispatch_decision.channels,
+                    alert_level=dispatch_decision.alert_level.value,
+                )
+            except Exception as exc:
+                logger.warning(f"Dispatch decision generation failed: {exc}")
+
+            processed_prediction.setdefault("metadata", {})
+            processed_prediction["metadata"].update(
+                message_id=message_id,
+                timestamp=int(time.time()),
+            )
+            processed_prediction.setdefault("labels", {})
+            processed_prediction["labels"]["should_alert"] = processed_prediction.get("should_alert", False)
+
+            self._publish_equipment_status(processed_prediction)
+
             return {
                 "success": True,
                 "message_id": message_id,
                 "error": None,
-                "payload": processed_prediction
+                "payload": processed_prediction,
+                "data": {
+                    "prediction": processed_prediction,
+                    "processing_time_ms": processing_time,
+                    "error_stage": None,
+                },
             }
 
         except Exception as exc:
@@ -158,3 +191,13 @@ class ProcessingPipeline:
                 "error": str(exc),
                 "payload": None
             }
+
+    def _publish_equipment_status(self, payload: Dict[str, Any]) -> None:
+        if not self.publisher:
+            logger.warning("ForecastingPublisher not initialized; skipping equipment status publish.")
+            return
+
+        try:
+            self.publisher.publish(payload)
+        except Exception as exc:
+            logger.error(f"Failed to publish equipment status payload: {exc}")

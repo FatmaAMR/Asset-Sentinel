@@ -1,0 +1,14 @@
+<svg width="200" height="200" viewBox="-100 -100 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Asset Sentinel logo</title>
+<desc>Hexagonal shield with EKG pulse line</desc>
+
+<polygon points="0,-90 78,-45 78,45 0,90 -78,45 -78,-45" fill="#0c2233" stroke="#38bdf8" stroke-width="3"/>
+<polygon points="0,-72 62,-36 62,36 0,72 -62,36 -62,-36" fill="none" stroke="#38bdf8" stroke-width="0.8" opacity="0.3"/>
+<polyline points="-52,0 -30,0 -18,-32 -6,32 6,-20 18,0 52,0" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="-52" cy="0" r="3.5" fill="#38bdf8"/>
+<circle cx="52"  cy="0" r="3.5" fill="#38bdf8"/>
+<line x1="0" y1="-90" x2="0" y2="-80" stroke="#38bdf8" stroke-width="1.5" opacity="0.5"/>
+<line x1="0" y1="90"  x2="0" y2="80"  stroke="#38bdf8" stroke-width="1.5" opacity="0.5"/>
+<line x1="-78" y1="-45" x2="-70" y2="-40" stroke="#38bdf8" stroke-width="1.5" opacity="0.5"/>
+<line x1="78"  y1="-45" x2="70"  y2="-40" stroke="#38bdf8" stroke-width="1.5" opacity="0.5"/>
+</svg>
