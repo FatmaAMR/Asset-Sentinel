@@ -38,14 +38,37 @@ except ImportError:
     sys.exit(1)
 
 
+def _extract_machine_id_from_raw(data: dict) -> str:
+    """Extract machine ID from raw sensor data payload."""
+    if not data:
+        return None
+    
+    # Check for unit_nr in processed_data
+    raw = data.get("raw", {})
+    if isinstance(raw, dict):
+        processed_data = raw.get("processed_data", {})
+        if isinstance(processed_data, dict):
+            unit_nr = processed_data.get("unit_nr")
+            if unit_nr is not None:
+                # unit_nr might be an array or single value
+                if isinstance(unit_nr, list) and len(unit_nr) > 0:
+                    return f"machine-{unit_nr[0]}"
+                else:
+                    return f"machine-{unit_nr}"
+    
+    return None
+
+
+
 def _build_document(message_id: str, data: dict) -> dict:
     """Map the incoming RabbitMQ message to a MongoDB document."""
     metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
     labels = data.get("labels", {}) if isinstance(data, dict) else {}
 
+    # Extract machine_id from raw sensor data first (highest priority)
     machine_id = (
-        data.get("machine_id")
-        or metadata.get("file_name")
+        _extract_machine_id_from_raw(data)
+        or data.get("machine_id")
         or metadata.get("machine_id")
     )
 

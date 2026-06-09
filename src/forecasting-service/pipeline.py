@@ -3,6 +3,7 @@ import os
 import logging
 import time
 import sys
+import re
 import json
 from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, asdict
@@ -55,14 +56,101 @@ class ProcessingPipeline:
         self.fleet_historical_buffers: Dict[str, List[np.ndarray]] = {}
         print("[System Launcher] V3 Core LSTM Components Successfully Integrated.")
 
+    @staticmethod
+    def _format_machine_id(candidate: Any) -> Optional[str]:
+        if candidate is None:
+            return None
+
+        if isinstance(candidate, list) and candidate:
+            candidate = candidate[0]
+
+        candidate_str = str(candidate).strip()
+        if not candidate_str:
+            return None
+
+        if re.match(r'^(machine|device)[-_]', candidate_str, re.I):
+            return candidate_str
+
+        digits = re.search(r'\d+', candidate_str)
+        if digits:
+            return f"machine-{digits.group(0)}"
+
+        return candidate_str
+
+    @staticmethod
+    def _find_unit_candidate(raw_data: Any) -> Optional[Any]:
+        if isinstance(raw_data, dict):
+            for key, value in raw_data.items():
+                normalized_key = str(key).lower()
+                if normalized_key in {
+                    "unit_nr",
+                    "unit_no",
+                    "unit_id",
+                    "unit",
+                    "machine_id",
+                    "machine",
+                    "asset_id",
+                    "asset",
+                }:
+                    if value is not None:
+                        return value
+
+                if normalized_key.startswith(("unit", "machine", "asset")) and value is not None:
+                    if re.search(r"\d+", str(value)):
+                        return value
+
+                found = ProcessingPipeline._find_unit_candidate(value)
+                if found is not None:
+                    return found
+        elif isinstance(raw_data, list):
+            for item in raw_data:
+                found = ProcessingPipeline._find_unit_candidate(item)
+                if found is not None:
+                    return found
+
+        return None
+
+    @staticmethod
+    def _extract_machine_id_from_raw(raw_data: Dict[str, Any]) -> Optional[str]:
+        """Extract machine ID from raw sensor data payload."""
+        if not raw_data or not isinstance(raw_data, dict):
+            return None
+
+        candidate = ProcessingPipeline._find_unit_candidate(raw_data)
+        return ProcessingPipeline._format_machine_id(candidate)
+
+    @staticmethod
+    def _extract_machine_id_from_file_name(file_name: str) -> Optional[str]:
+        if not file_name or not isinstance(file_name, str):
+            return None
+
+        file_stem = Path(file_name).stem
+        if not file_stem:
+            return None
+
+        if re.match(r'^(machine|device)[-_]', file_stem, re.I):
+            return file_stem
+
+        digits = re.search(r'\d+', file_stem)
+        if digits:
+            return f"machine-{digits.group(0)}"
+
+        return file_stem
+
     def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
         start_time_ms = time.time()
         
         message_id = message.get("message_id", "unknown")
         record = message.get("record", {})
-        machine_id = record.get("file_name", "unknown_asset")
         machine_type = message.get("machine_type", "base_type")
         raw_telemetry_packet = record.get("data", {})
+        
+        # Extract machine_id from raw sensor data first, fallback to normalized file_name
+        machine_id = (
+            self._extract_machine_id_from_raw(raw_telemetry_packet)
+            or self._extract_machine_id_from_file_name(record.get("file_name", ""))
+            or "unknown_asset"
+        )
 
         print(f"\n>>> [Pipeline Input Received] Message ID: {message_id} | Tracking ID: {machine_id}")
 
@@ -168,6 +256,10 @@ class ProcessingPipeline:
             )
             processed_prediction.setdefault("labels", {})
             processed_prediction["labels"]["should_alert"] = processed_prediction.get("should_alert", False)
+            
+            # Include raw sensor data for downstream consumer extraction
+            processed_prediction.setdefault("raw", {})
+            processed_prediction["raw"] = raw_telemetry_packet
 
             self._publish_equipment_status(processed_prediction)
 
