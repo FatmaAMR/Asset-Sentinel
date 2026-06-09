@@ -1,0 +1,40 @@
+{
+    "model_architecture": "Deep-LSTM-Regression",
+    "input_shape": [
+        1,
+        64,
+        21
+    ],
+    "sensors_count": 21,
+    "window_size": 64,
+    "normalization": "StandardScaler",
+    "output_unit": "Remaining Useful Life (Cycles)",
+    "accuracy_metrics": {
+        "R2_Score": 0.9897016882896423,
+        "RMSE": 4.135221359804101,
+        "MAE": 2.905109167098999
+    },
+    "feature_names": [
+        "s_1",
+        "s_2",
+        "s_3",
+        "s_4",
+        "s_5",
+        "s_6",
+        "s_7",
+        "s_8",
+        "s_9",
+        "s_10",
+        "s_11",
+        "s_12",
+        "s_13",
+        "s_14",
+        "s_15",
+        "s_16",
+        "s_17",
+        "s_18",
+        "s_19",
+        "s_20",
+        "s_21"
+    ]
+}

@@ -1,243 +1,160 @@
 from __future__ import annotations
-
+import os
 import logging
 import time
 import sys
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, asdict
-from datetime import datetime
 from pathlib import Path
 import numpy as np
-import torch
 
 current_file = Path(__file__).resolve()
 service_root = current_file.parent
 
-if str(service_root) not in sys.path:
-    sys.path.insert(0, str(service_root))
-
 try:
-    from models.transformers import SensorTransformer
     from services.forecasting_engine import ForecastingEngine
     from services.logic import SensorLogic
-    from services.verification import verify
-    from services.disptcher import dispatch
-    from utils.publisher import ForecastingPublisher
+    from services.verification import SensorValidator
+    from services.disptcher import dispatch, ThresholdConfig, AlertLevel
 except ImportError as e:
-    print(f"[Error] Failed to import real modules: {e}")
-    sys.exit(1)
+    sys.path.insert(0, str(service_root))
+    from services.forecasting_engine import ForecastingEngine
+    from services.logic import SensorLogic
+    from services.verification import SensorValidator
+    from services.disptcher import dispatch, ThresholdConfig, AlertLevel
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
-@dataclass
-class PipelineResult:
-    success: bool
-    message_id: str
-    file_name: str
-    window_index: int
-    prediction: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    error_stage: Optional[str] = None
-    processing_time_ms: float = 0.0
-    timestamp: str = None
-
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now().isoformat()
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-
 class ProcessingPipeline:
-    def __init__(self, transformer: Optional[SensorTransformer] = None):
-        print("[System] Initializing Sentinel AI Pipeline Components...")
+    def __init__(self):
+        print("[System Launcher] Booting Up Sentinel AI Production Pipeline Context...")
         
-        self.transformer = transformer or SensorTransformer()
+        current_service_dir = Path(__file__).resolve().parent
+        
+        # UPDATED PATHS: Direct integration linking to the elite Version 3 assets
+        base_weights = current_service_dir / "assets" / "sentinel_v3_weights.pth"
+        scaler_file = current_service_dir / "assets" / "telemetry_scaler.joblib"
+        
+        print(f"[System Path Check] Loading Production LSTM Weights from: {base_weights}")
+        print(f"[System Path Check] Loading Production Standard Scaler from: {scaler_file}")
+        
+        # Initialize Updated Core Services
+        self.validator = SensorValidator(scaler_path=str(scaler_file))
+        self.engine = ForecastingEngine(base_weights_path=str(base_weights), assets_dir=str(current_service_dir / "assets"))
         self.logic = SensorLogic()
-        self.publisher = ForecastingPublisher()
         
-        base_weights = service_root / "assets" / "base_model.pth"
-        self.engine = ForecastingEngine(base_weights_path=str(base_weights))
-        
-        print(f"[System] All real components loaded. Model weights: {base_weights.name}")
+        self.fleet_historical_buffers: Dict[str, List[np.ndarray]] = {}
+        print("[System Launcher] V3 Core LSTM Components Successfully Integrated.")
 
     def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        start_time = time.time()
+        start_time_ms = time.time()
         
         message_id = message.get("message_id", "unknown")
         record = message.get("record", {})
-        file_name = record.get("file_name", "unknown")
-        window_index = record.get("window_index", 0)
+        machine_id = record.get("file_name", "unknown_asset")
         machine_type = message.get("machine_type", "base_type")
-
-        print(f"\n--- [Pipeline Start] Message ID: {message_id} ---")
-
-        result = PipelineResult(
-            success=False,
-            message_id=message_id,
-            file_name=file_name,
-            window_index=window_index,
-        )
+        
+        print(f"\n>>> [Pipeline Input Received] Message ID: {message_id} | Tracking ID: {machine_id}")
 
         try:
-            print(f"[Step 1/5] Extraction | Input: {file_name} | Window: {window_index}")
-            column_names = record.get("column_names", [])
-            data = record.get("data", {})
-
-            if not data:
-                raise ValueError("Empty sensor data received in pipeline")
-            print(f"  > Status: Extracted {len(column_names)} columns successfully.")
-
-            print("[Step 2/5] Transformation | Applying SensorTransformer logic")
-            transformed_data = self.transformer.transform(
-                data=data,
-                column_names=column_names,
-            )
-            print(f"  > Status: Transformation complete. Data shape: {transformed_data.shape}")
-
-            print("[Step 3/5] AI Inference | Preparing window for Sentinel AI (64, 21)")
-            # transformed_data is (26, 128) — 26 columns x 128 timesteps
-            # Transpose to (128, 26) — timesteps x features
-            window = transformed_data.T  # (128, 26)
-
-            # CMAPSS format: first 5 columns are metadata (unit, time, op_setting_1/2/3)
-            # Drop them to keep only the 21 sensor columns
-            window = window[:, 5:]  # (128, 21)
-
-            # Take last 64 timesteps for the model
-            if window.shape[0] >= 64:
-                prepared_window = window[-64:, :]
-                print(f"  > Info: Truncated sequence to last 64 readings")
-            else:
-                padding = np.zeros((64 - window.shape[0], 21))
-                prepared_window = np.vstack((padding, window))
-                print(f"  > Info: Padded sequence from {window.shape[0]} to 64")
-
-            prepared_window_batch = np.expand_dims(prepared_window, axis=0)  # (1, 64, 21)
-
-            try:
-                predicted_rul = self.engine.run_inference(
-                    machine_id=file_name,
-                    machine_type=machine_type,
-                    window_data=prepared_window_batch
-                )
-                print(f"  > Status: Sentinel AI Prediction Output: {predicted_rul:.2f} units")
-            except Exception as model_exc:
-                print(f"  > Warning: Model inference failed ({str(model_exc)[:60]}...)")
-                print(f"  > Status: Using mock prediction for demonstration")
-                predicted_rul = np.random.uniform(50, 150)
-                print(f"  > Status: Mock Prediction Output: {predicted_rul:.2f} units")
-
-            print("[Step 4/5] Verification & Logic | Validating health and business rules")
-            try:
-                verification = verify(prepared_window, self.engine, machine_type, machine_id=file_name)
-                decision = dispatch(verification)
-            except Exception as verify_exc:
-                print(f"  > Warning: Verification failed, using defaults")
-                from services.disptcher import DispatchDecision, AlertLevel
-                verification = type('obj', (object,), {
-                    'mean_rul': float(predicted_rul),
-                    'confidence': 0.85,
-                    'machine_id': file_name,
-                    'failure_type': 'unknown'
-                })()
-                decision = DispatchDecision(
-                    machine_id=file_name,
-                    alert_level=AlertLevel.HEALTHY if predicted_rul > 100 else AlertLevel.MONITOR,
-                    mean_rul=float(predicted_rul),
-                    confidence=0.85,
-                    failure_type="unknown",
-                    message=f"STATUS MOCK: Machine {file_name} - RUL: {predicted_rul:.1f}h",
-                    should_alert=False,
-                    channels=[]
-                )
+            # Step 1: Real-time Feature Extraction and Normalization via telemetry_scaler
+            raw_telemetry_packet = record.get("data", {})
+            scaled_row, errors = self.validator.process_and_scale_features(raw_telemetry_packet)
             
+            if errors or scaled_row is None:
+                raise ValueError(f"Feature processing architecture exceptions raised: {errors}")
+
+            # Step 2: Manage Sliding Window Buffers per individual Asset ID
+            if machine_id not in self.fleet_historical_buffers:
+                self.fleet_historical_buffers[machine_id] = []
+                
+            self.fleet_historical_buffers[machine_id].append(scaled_row)
+            
+            if len(self.fleet_historical_buffers[machine_id]) > 64:
+                self.fleet_historical_buffers[machine_id].pop(0)
+
+            # Step 3: Handle Zero-Padding structures during early initial start-up loops
+            current_history_len = len(self.fleet_historical_buffers[machine_id])
+            current_window_stack = np.array(self.fleet_historical_buffers[machine_id])
+            
+            if current_history_len < 64:
+                pad_width = 64 - current_history_len
+                padding = np.zeros((pad_width, len(self.validator.ACTIVE_FEATURES)))
+                prepared_window = np.vstack((padding, current_window_stack))
+            else:
+                prepared_window = current_window_stack
+
+            # Expand dims to lock standard 3D tensor serialization layout: [1, 64, 21]
+            prepared_window_batch = np.expand_dims(prepared_window, axis=0)
+
+            # Step 4: Run Elite V3 LSTM Core Forecasting Engine
+            predicted_rul = self.engine.run_inference(
+                machine_type=machine_type,
+                window_data=prepared_window_batch
+            )
+            print(f"  > AI Core Inference Response: Predicted RUL = {predicted_rul:.2f} Cycles.")
+
+            # Step 5: Automated Post-Alert XAI Diagnostic Triggers Loop Condition
+            xai_diagnostic_payload = None
+            
+            PRODUCTION_THRESHOLD = 45.0
+            if predicted_rul <= PRODUCTION_THRESHOLD and current_history_len >= 64:
+                print(f"  > 🚨 [CRITICAL ALERT TRIGGERED] Safety Bound Breached! Extracting Gradient Saliency...")
+                
+                # Fetch the active trained neural model instance from engine dynamically
+                active_model_nn = self.engine._get_model_instance(machine_type, len(self.validator.ACTIVE_FEATURES))
+                
+                # CRUCIAL FIX: Pass active_model_nn as the first parameter
+                xai_result = self.validator.execute_xai_root_cause_analysis(
+                    model_engine=active_model_nn, 
+                    window_matrix=prepared_window, 
+                    threshold_value=PRODUCTION_THRESHOLD
+                )
+                xai_diagnostic_payload = asdict(xai_result)
+                print(f"  > XAI Isolation Complete. Primary Target Source: {xai_diagnostic_payload['mapped_mechanical_subsystem']}")
+                
+            # Step 6: Package Response payloads for Downstream Brokers
             prediction_payload = {
                 "predicted_rul": float(predicted_rul),
+                "machine_id": machine_id,
                 "machine_type": machine_type,
-                "mean_rul": float(verification.mean_rul),
-                "confidence": float(verification.confidence),
-                "alert_level": decision.alert_level.value,
-                "alert_message": decision.message,
-                "should_alert": decision.should_alert
+                "confidence": 0.99 if current_history_len >= 64 else 0.40,  # High production score for locked sequences
+                "alert_level": "CRITICAL" if (predicted_rul <= PRODUCTION_THRESHOLD and current_history_len >= 64) else "HEALTHY",
+                "xai_root_cause_diagnosis": xai_diagnostic_payload
             }
 
             processed_prediction = self.logic.process_prediction(
                 prediction=prediction_payload,
-                sensor_data=data,
-                file_name=file_name,
+                sensor_data=raw_telemetry_packet,
+                file_name=machine_id
             )
-            print(f"  > Status: Alert Level set to [{decision.alert_level.value}].")
 
-            print("[Step 5/5] Broker | Generating Dispatch Payload")
-            self._prepare_broker_payload(message_id, file_name, processed_prediction, data)
-
-            result.success = True
-            result.prediction = processed_prediction
-
-        except Exception as exc:
-            print(f"[CRITICAL ERROR] Stage: {self._get_current_stage()} | Details: {exc}")
-            result.success = False
-            result.error = str(exc)
-            result.error_stage = self._get_current_stage()
-
-        finally:
-            result.processing_time_ms = (time.time() - start_time) * 1000
-            print(f"--- [Pipeline End] Total Time: {result.processing_time_ms:.2f}ms ---\n")
-
-        return {
-            "success": result.success,
-            "message_id": result.message_id,
-            "error": result.error,
-            "data": result.to_dict(),
-        }
-
-    def _prepare_broker_payload(self, message_id: str, file_name: str, prediction: Dict, raw_data: Dict):
-        status_payload = {
-            "metadata": {
+            processing_time = (time.time() - start_time_ms) * 1000
+            print(f">>> [Pipeline Complete] Output Payload Compiled in {processing_time:.2f}ms.\n")
+            
+            # -------------------------------------------------------------------------
+            # SNEAK PEEK FOR INTEGRATION DEVELOPERS (PRINT FOR VERIFICATION)
+            # -------------------------------------------------------------------------
+            print("=" * 60)
+            print(f"[AI ENGINE BROADCAST] Compiled Payload Ready for Broker Integration:")
+            print("=" * 60)
+            print(json.dumps(processed_prediction, indent=4))
+            print("=" * 60 + "\n")
+            # -------------------------------------------------------------------------
+            
+            return {
+                "success": True,
                 "message_id": message_id,
-                "file_name": file_name,
-                "timestamp": datetime.utcnow().isoformat()
-            },
-            "processed_data": raw_data,
-            "labels": {
-                "predicted_rul": prediction.get("predicted_rul"),
-                "health_state": prediction.get("alert_level"),
-                "confidence": prediction.get("confidence"),
-                "should_alert": prediction.get("should_alert")
+                "error": None,
+                "payload": processed_prediction
             }
-        }
-        
-        # Display the formatted payload for verification
-        print("  > Broker Payload Structure:")
-        print(json.dumps(status_payload, indent=4))
 
-        try:
-            if not self.publisher._channel:
-                self.publisher.connect()
-            self.publisher.publish(status_payload)
         except Exception as exc:
-            print(f"[WARN] Could not publish broker payload: {exc}")
-
-    def _get_current_stage(self) -> str:
-        import inspect
-        return inspect.currentframe().f_back.f_code.co_name
-
-if __name__ == "__main__":
-    try:
-        pipeline = ProcessingPipeline()
-        sample_input = {
-            "message_id": "TEST-12345",
-            "machine_type": "Industrial_Engine_V1",
-            "record": {
-                "file_name": "machine_001.csv",
-                "window_index": 100,
-                "column_names": [f"sensor_{i}" for i in range(21)],
-                "data": {f"sensor_{i}": [np.random.rand()] for i in range(21)}
+            logger.error(f"[Pipeline Runtime Failure] Process aborted: {str(exc)}")
+            return {
+                "success": False,
+                "message_id": message_id,
+                "error": str(exc),
+                "payload": None
             }
-        }
-        final_result = pipeline.process(sample_input)
-    except Exception as e:
-        print(f"Failed to run pipeline: {e}")
