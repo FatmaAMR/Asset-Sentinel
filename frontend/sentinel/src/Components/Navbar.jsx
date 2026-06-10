@@ -30,6 +30,7 @@ export default function Navbar() {
             <Link to="/history" className={linkClass("/history")}>History & Trends</Link>
             <Link to="/assets" className={linkClass("/assets")}>Assets</Link>
             <Link to="/thresholds" className={linkClass("/thresholds")}>Thresholds</Link>
+            <Link to="/data-explorer" className={linkClass("/data-explorer")}>Data Explorer</Link>
           </div>
         </div>
         

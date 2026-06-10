@@ -1,19 +1,23 @@
 import { useEffect } from "react";
-import useQueryingStore from "../../stores/queringStore";
+import { useKnowledgeStore } from "../../stores/useKnowledgeStore";
 
 export default function StatsRow() {
-  const { fetchStatus, totalChunks, isReady, loading } = useQueryingStore();
+  const { fetchStatus, totalChunks, isReady, statusLoading } = useKnowledgeStore();
 
   useEffect(() => {
     fetchStatus();
   }, []);
 
   const displayChunks =
-    totalChunks != null ? totalChunks.toLocaleString() : loading ? "…" : "—";
+    totalChunks != null
+      ? totalChunks.toLocaleString()
+      : statusLoading
+      ? "…"
+      : "—";
 
   return (
     <section className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 py-10 border-t border-slate-200 dark:border-slate-800">
-      {/* Live from backend */}
+      {/* Live from /rag/status */}
       <div>
         <span className="block text-3xl font-display font-extrabold text-primary mb-1">
           {displayChunks}

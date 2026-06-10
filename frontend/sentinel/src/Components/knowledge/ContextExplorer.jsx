@@ -1,25 +1,57 @@
-import { useState } from "react";
-import useQueryingStore from "../../stores/queringStore";
+import { useEffect, useState } from "react";
+import { useKnowledgeStore } from "../../stores/useKnowledgeStore";
+import { useConsultingStore } from "../../stores/useConsultingStore";
 
 export default function ContextExplorer() {
   const {
-    ask,
-    answer,
+    fetchStatus,
+    fetchCollections,
+    totalChunks,
+    isReady,
+    collections,
+    collectionsLoading,
+  } = useKnowledgeStore();
+
+  const {
+    askConsulting,
+    isLoading,
+    rawAnswer,
     sources,
-    question,
-    history,
-    loading,
     error,
-    clearAnswer,
-  } = useQueryingStore();
+    clearDiagnosis,
+  } = useConsultingStore();
+
   const [input, setInput] = useState("");
+  const [question, setQuestion] = useState("");
+
+  useEffect(() => {
+    fetchStatus();
+    fetchCollections();
+  }, []);
 
   const handleAsk = async (e) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
-    await ask(input.trim());
+    if (!input.trim() || isLoading) return;
+    setQuestion(input.trim());
+    await askConsulting(input.trim(), 4);
     setInput("");
   };
+
+  // Build chunk preview cards from collections or show placeholders
+  const chunkCards = collections.slice(0, 3).map((col, i) => ({
+    id: col.id ?? col.chunk_id ?? `#${4421 + i}`,
+    vector: col.vector ?? "[0.892, 0.221, -0.44...]",
+    relevance: i === 0 ? "High Relevance" : null,
+  }));
+
+  // Pad with placeholders if needed
+  while (chunkCards.length < 2) {
+    chunkCards.push({
+      id: `#${4421 + chunkCards.length}`,
+      vector: "[0.892, 0.221, -0.44...]",
+      relevance: chunkCards.length === 0 ? "High Relevance" : null,
+    });
+  }
 
   return (
     <section className="bg-primary text-white rounded-[2.5rem] p-8 h-full relative overflow-hidden shadow-2xl shadow-primary/20">
@@ -35,47 +67,87 @@ export default function ContextExplorer() {
         </div>
 
         <p className="text-white/80 text-sm">
-          Ask the RAG engine a question about your indexed technical
-          documentation.
+          Visualizing how the RAG engine chunks and indexes technical
+          documentation for local inference.
         </p>
 
-        {/* Input */}
+        {/* Chunk preview cards from GET /rag/collections */}
+        <div className="space-y-3">
+          {collectionsLoading ? (
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div key={i} className="bg-white/10 rounded-2xl p-4 animate-pulse">
+                  <div className="h-3 bg-white/20 rounded w-1/3 mb-2" />
+                  <div className="h-2 bg-white/10 rounded w-full mb-1" />
+                  <div className="h-2 bg-white/10 rounded w-3/4" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            chunkCards.map((card, i) => (
+              <div key={i} className="bg-white/10 border border-white/20 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-white/60 uppercase tracking-widest">
+                    CHUNK ID: {card.id}
+                  </span>
+                  {card.relevance && (
+                    <span className="text-[10px] font-bold bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full">
+                      {card.relevance}
+                    </span>
+                  )}
+                </div>
+                {/* Vector bar visualization */}
+                <div className="space-y-1 mb-2">
+                  <div className="h-1.5 bg-white/30 rounded-full w-full" />
+                  <div className="h-1.5 bg-white/20 rounded-full w-4/5" />
+                  <div className="h-1.5 bg-white/10 rounded-full w-3/5" />
+                </div>
+                <p className="text-white/60 text-[11px] font-mono flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                  Vector: {card.vector}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Ask input → POST /rag/ask */}
         <form onSubmit={handleAsk} className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="e.g. What is the bearing torque spec?"
-            disabled={loading}
+            disabled={isLoading}
             className="flex-1 bg-white/10 border border-white/20 text-white placeholder-white/40 text-sm rounded-2xl px-4 py-2.5 outline-none focus:border-white/50 disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={loading || !input.trim()}
+            disabled={isLoading || !input.trim()}
             className="bg-white text-primary font-bold px-4 py-2.5 rounded-2xl hover:bg-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-rounded text-base">
-              {loading ? "hourglass_top" : "send"}
+              {isLoading ? "hourglass_top" : "send"}
             </span>
           </button>
         </form>
 
-        {/* Answer */}
-        {(answer || error) && (
+        {/* Answer from /rag/ask */}
+        {(rawAnswer || error) && (
           <div className="bg-white/10 border border-white/20 rounded-2xl p-4 text-sm space-y-3">
             {error ? (
               <p className="text-red-300 flex items-center gap-2">
-                <span className="material-symbols-rounded text-base">
-                  error
-                </span>
+                <span className="material-symbols-rounded text-base">error</span>
                 {error}
               </p>
             ) : (
               <>
-                <p className="text-white/60 text-[11px] uppercase tracking-widest font-bold">
-                  Q: {question}
-                </p>
-                <p className="text-white leading-relaxed">{answer}</p>
+                {question && (
+                  <p className="text-white/60 text-[11px] uppercase tracking-widest font-bold">
+                    Q: {question}
+                  </p>
+                )}
+                <p className="text-white leading-relaxed">{rawAnswer}</p>
 
                 {sources?.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1 border-t border-white/10">
@@ -84,24 +156,18 @@ export default function ContextExplorer() {
                         key={i}
                         className="text-[10px] font-bold bg-white/10 border border-white/20 px-2 py-0.5 rounded-full flex items-center gap-1"
                       >
-                        <span className="material-symbols-rounded text-[10px]">
-                          description
-                        </span>
-                        {typeof s === "string"
-                          ? s
-                          : (s.source ?? s.file ?? `Source ${i + 1}`)}
+                        <span className="material-symbols-rounded text-[10px]">description</span>
+                        {typeof s === "string" ? s : (s.source ?? s.file ?? `Source ${i + 1}`)}
                       </span>
                     ))}
                   </div>
                 )}
 
                 <button
-                  onClick={clearAnswer}
+                  onClick={() => { clearDiagnosis(); setQuestion(""); }}
                   className="text-white/40 hover:text-white/80 text-[11px] flex items-center gap-1 transition"
                 >
-                  <span className="material-symbols-rounded text-[11px]">
-                    close
-                  </span>
+                  <span className="material-symbols-rounded text-[11px]">close</span>
                   Clear
                 </button>
               </>
@@ -109,28 +175,10 @@ export default function ContextExplorer() {
           </div>
         )}
 
-        {/* Recent history */}
-        {history.length > 0 && !answer && (
-          <div className="space-y-2 overflow-y-auto max-h-40">
-            <p className="text-white/50 text-[10px] uppercase tracking-widest font-bold">
-              Recent
-            </p>
-            {history.slice(0, 3).map((h) => (
-              <div
-                key={h.id}
-                className="bg-white/5 border border-white/10 rounded-xl p-3 text-xs"
-              >
-                <p className="text-white/60 mb-1">Q: {h.question}</p>
-                <p className="text-white line-clamp-2">{h.answer}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Bottom card — live indexing efficiency */}
+        {/* Bottom card — live chunk count from GET /rag/status */}
         <div className="mt-auto bg-white rounded-[1.5rem] p-6 text-slate-900">
           <h4 className="font-bold mb-1">Indexing Efficiency</h4>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-3xl font-display font-extrabold text-primary">
               98.4%
             </span>
@@ -138,6 +186,14 @@ export default function ContextExplorer() {
               +2.1%
             </span>
           </div>
+          {totalChunks != null && (
+            <p className="text-[11px] text-slate-500 font-medium mb-1">
+              <span className="font-bold text-slate-700">{totalChunks.toLocaleString()}</span> chunks indexed
+              {isReady && (
+                <span className="ml-2 text-emerald-600 font-bold">● Live</span>
+              )}
+            </p>
+          )}
           <p className="text-[11px] text-slate-500 font-medium">
             Optimized for GPT4-All and Llama-3 local instances.
           </p>
