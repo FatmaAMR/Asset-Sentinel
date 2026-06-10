@@ -8,3 +8,4 @@ pandas==2.1.3
 scikit-learn==1.3.2
 pytest==7.4.3
 torch
+certifi

@@ -10,6 +10,9 @@ Startup order
 2. Register the PdfEmbedder + LLMClient with service_factory.
    Per-machine SensorEmbedders are created lazily on first ingest-window/diagnose.
 """
+
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import torch
 import numpy as np
 
@@ -32,6 +35,7 @@ from services.embedder         import PdfEmbedder
 from services.llm_client       import LLMClient
 from services.service_factory  import init_services
 from api.rag_router            import router as rag_router
+from services.evaluator        import eval_router
 from services.notification_bus import close_publisher
 
 setup_logging()
@@ -76,6 +80,8 @@ app = FastAPI(
 )
 
 app.include_router(rag_router)
+if eval_router:
+    app.include_router(eval_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins = ["http://localhost:5173"],

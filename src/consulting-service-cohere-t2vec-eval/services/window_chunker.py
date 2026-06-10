@@ -225,17 +225,28 @@ def _build_sensor_lines(channels: dict[str, list[float]]) -> list[str]:
 
 
 def _columnar_to_row_list(data: dict) -> list[dict]:
-    max_len = max(
-        (len(v) for v in data.values() if isinstance(v, (list, tuple))),
-        default=1,
-    )
-    rows: list[dict] = []
-    for i in range(max_len):
-        row: dict = {}
-        for col, vals in data.items():
-            row[col] = vals[i] if isinstance(vals, (list, tuple)) and i < len(vals) else vals
-        rows.append(row)
-    return rows
+    """
+    Convert columnar {col: [v1, v2, ...]} to row-wise [{col: v1}, {col: v2}, ...].
+
+    Delegates to services.evaluator.normalise_window for a single canonical
+    implementation that handles both {[]} and [{}] formats everywhere.
+    """
+    try:
+        from services.evaluator import normalise_window
+        return normalise_window(data)
+    except ImportError:
+        # Fallback if evaluator is not yet available (e.g. first import)
+        max_len = max(
+            (len(v) for v in data.values() if isinstance(v, (list, tuple))),
+            default=1,
+        )
+        rows: list[dict] = []
+        for i in range(max_len):
+            row: dict = {}
+            for col, vals in data.items():
+                row[col] = vals[i] if isinstance(vals, (list, tuple)) and i < len(vals) else vals
+            rows.append(row)
+        return rows
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -259,10 +270,16 @@ def window_event_to_chunks(event: Any) -> list[dict]:
     message_id     = str(data.get("message_id", "no_id"))
     reason         = str(data.get("reason", "")).strip()
 
-    if isinstance(window_sliding, dict):
-        window_sliding = _columnar_to_row_list(window_sliding)
-    elif not isinstance(window_sliding, list):
-        window_sliding = [window_sliding]
+    # Normalise both {[]} and [{}] formats via the canonical converter
+    try:
+        from services.evaluator import normalise_window
+        window_sliding = normalise_window(window_sliding)
+    except ImportError:
+        # Fallback: local helper handles columnar dict
+        if isinstance(window_sliding, dict):
+            window_sliding = _columnar_to_row_list(window_sliding)
+        elif not isinstance(window_sliding, list):
+            window_sliding = [window_sliding] if window_sliding else []
 
     n_steps = len(window_sliding)
 

@@ -22,10 +22,10 @@ class Settings:
         "RABBITMQ_URL",
         "amqps://epnwrxps:FJDX9jCp6ng-bHYxHocDRsYbBqsJ6yP3@cow.rmq2.cloudamqp.com/epnwrxps"
     )
-    RABBITMQ_EXCHANGE = os.getenv("RABBITMQ_EXCHANGE", "motor_exchange")
-    RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE", "motor.raw")
-    RABBITMQ_ROUTING_KEY = os.getenv("RABBITMQ_ROUTING_KEY", "motor.raw")
-    RABBITMQ_DLX_QUEUE = os.getenv("RABBITMQ_DLX_QUEUE", "motor.raw.dlx")
+    RABBITMQ_EXCHANGE = os.getenv("MOTOR_EXCHANGE", "motor_exchange")
+    RABBITMQ_QUEUE = os.getenv("MOTOR_QUEUE", "motor.raw")
+    RABBITMQ_ROUTING_KEY = os.getenv("MOTOR_ROUTING_KEY", "motor.raw")
+    RABBITMQ_DLX_QUEUE = os.getenv("MOTOR_DLX_QUEUE", "motor.raw.dlx")
 
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./shared.db")
 
