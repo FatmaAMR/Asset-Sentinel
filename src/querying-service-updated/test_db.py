@@ -1,0 +1,10 @@
+﻿from db.connection import DatabaseManager
+db = DatabaseManager()
+docs = list(db.collection.find({}, {'_id': 0}))
+print('MongoDB docs:', len(docs))
+conn = db._build_in_memory_db(docs)
+cursor = conn.cursor()
+cursor.execute('SELECT COUNT(1) FROM assets')
+print('SQLite rows:', cursor.fetchone())
+cursor.execute('SELECT machine_id, label, rul FROM assets LIMIT 1')
+print('First row:', cursor.fetchone())

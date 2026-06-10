@@ -27,8 +27,8 @@ from typing import Literal
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
-MASTER_LLM_URL = os.getenv("MASTER_LLM_URL", "http://localhost:8000")
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env", override=True)
+MASTER_LLM_URL = os.getenv("MASTER_LLM_URL", "http://localhost:8001")
 ADMIN_API_KEY   = os.getenv("MASTER_LLM_ADMIN_KEY", "gradteam")
 
 

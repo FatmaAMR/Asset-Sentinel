@@ -7,12 +7,14 @@ from db.connection import DatabaseManager
 router = APIRouter()
 
 # 2. Initialize your logic and DB manager
-logic = QueryingLogic()
-db_manager = DatabaseManager()
+def get_db():
+    return DatabaseManager()
 
 # 3. Now you can use @router
 @router.get("/ask")
 async def ask_question(question: str):
+    logic = QueryingLogic()
+    db_manager = get_db()
     formatted_instruction = SQL_SYSTEM_TEMPLATE.format(schema=CURRENT_DATABASE_SCHEMA)
     
     sql_query = await logic.get_llm_response(

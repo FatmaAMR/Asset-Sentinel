@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from pymongo import MongoClient
 
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env", override=True)
 
 MONGO_URL       = os.getenv("DB_URL")
 DATABASE_NAME   = os.getenv("DB_NAME", "Sentinel")

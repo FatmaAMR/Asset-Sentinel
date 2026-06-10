@@ -1,18 +1,19 @@
-# Base template for SQL generation
 SQL_SYSTEM_TEMPLATE = """
 You are a SQL expert for an industrial predictive maintenance system.
 Convert the user's natural language question into a valid SQL query.
-
 Database Schema:
 {schema}
-
 Return ONLY the SQL query code. Do not include any explanations or markdown blocks.
 """
 
-# Dynamic Schema definition
 CURRENT_DATABASE_SCHEMA = """
-- assets (id, name, type, location, install_date)
-- sensor_readings (id, asset_id, timestamp, temperature, vibration, pressure)
-- maintenance_logs (id, asset_id, technician_name, maintenance_date, issue_found, parts_replaced)
-- predictions (id, asset_id, predicted_rul, confidence)
+Table: assets
+Columns:
+- timestamp   (TEXT) : ISO datetime of the reading e.g. '2026-06-09T15:12:17.352000'
+- machine_id  (TEXT) : machine identifier e.g. 'machine-68'
+- message_id  (TEXT) : unique message UUID
+- label       (TEXT) : health status, values are 'HEALTHY', 'WARNING', 'CRITICAL'
+- rul         (TEXT) : remaining useful life as numeric text, use CAST(rul AS REAL) for math
+
+NOTE: All values are stored as TEXT. Always use CAST(rul AS REAL) when sorting or comparing rul.
 """
