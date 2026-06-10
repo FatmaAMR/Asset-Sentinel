@@ -34,6 +34,7 @@ logger = logging.getLogger("service_factory")
 _pdf_embedder:  PdfEmbedder  | None = None
 _rag_service:   RAGService   | None = None
 _llm:           LLMClient    | None = None
+_agentic_rag_service: AgenticRAGService |None=None
 
 # Per-machine caches  {machine_id: instance}
 _sensor_embedders:        dict[str, SensorEmbedder]  = {}
@@ -42,10 +43,10 @@ _machine_diagnose_services: dict[str, DiagnoseService] = {}
 
 def init_services(pdf_embedder: PdfEmbedder, llm: LLMClient) -> None:
     """Called once from main.py lifespan to register the default instances."""
-    global _pdf_embedder, _rag_service, _llm
+    global _pdf_embedder, _agentic_rag_service, _llm
     _pdf_embedder = pdf_embedder
     _llm          = llm
-    _rag_service  = RAGService(pdf_embedder, llm)
+    _agentic_rag_service= RAGService(pdf_embedder, llm)
     logger.info(
         "Services initialised — global KB collection: '%s'.",
         pdf_embedder.collection.name,
@@ -94,17 +95,17 @@ def get_embedder(machine_id: str | None = None):
 
     New code should call get_pdf_embedder() or get_sensor_embedder() directly.
     """
-    if machine_id is None:
+    if machine_id == "pdf" or machine_id is None:
         return get_pdf_embedder()
     return get_sensor_embedder(machine_id)
 
 
 # ── RAG (global KB) ────────────────────────────────────────────────────────────
 
-def get_rag_service() -> RAGService:
-    if _rag_service is None:
+def get_rag_service():
+    if _agentic_rag_service is None:
         raise RuntimeError("Services not initialised yet.")
-    return _rag_service
+    return _agentic_rag_service
 
 
 # ── LLM ────────────────────────────────────────────────────────────────────────

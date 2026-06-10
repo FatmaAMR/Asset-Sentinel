@@ -122,7 +122,7 @@ class PdfEmbedder:
 
         for i in range(0, len(new_chunks), batch_size):
             batch  = new_chunks[i : i + batch_size]
-            texts  = [normalize(c["text"]) for c in batch]
+            texts  = [c["text"] for c in batch]
             embeds = _embed_text_sync(texts, "search_document")
             self.collection.add(
                 ids        = [c["id"] for c in batch],
@@ -144,7 +144,7 @@ class PdfEmbedder:
         top_k = top_k or settings.rag_top_k
         if self.collection.count() == 0:
             return []
-        emb = _embed_text_sync([normalize(question)], "search_query")[0]
+        emb = _embed_text_sync([question], "search_query")[0]
         res = self.collection.query(
             query_embeddings = [emb],
             n_results        = min(top_k, self.collection.count()),

@@ -48,7 +48,7 @@ class LLMClient:
         system_prompt: str | None = None,
         model: str | None = None,
         max_tokens: int = 512,
-        temperature: float = 0.7,
+        temperature: float = 0.1,
     ) -> str:
         """Call /generate and return the generated text string."""
         payload = {

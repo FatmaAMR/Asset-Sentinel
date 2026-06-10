@@ -28,7 +28,7 @@ class ChunkProfile(str, Enum):
 _CHUNK_CONFIG: dict[ChunkProfile, dict] = {
     ChunkProfile.GLOBAL: {
         "size":    800,   # characters per chunk — richer context per hit
-        "overlap": 100,   # generous overlap so concepts don't split badly
+        "overlap": 150,   # generous overlap so concepts don't split badly
     },
     ChunkProfile.MACHINE: {
         "size":    400,   # smaller → more targeted fault matching
