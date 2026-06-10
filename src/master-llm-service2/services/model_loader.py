@@ -35,7 +35,7 @@ class ModelLoader:
         prompt: str,
         system_prompt: str | None = None,
         max_tokens: int = 512,
-        temperature: float = 0.7,
+        temperature: float = 0.2,
     ) -> tuple[str, int]:
         """
         Call Ollama's /api/chat endpoint (sync via httpx).

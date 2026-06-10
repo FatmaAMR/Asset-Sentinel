@@ -14,7 +14,6 @@ class Settings:
     RABBITMQ_URL = os.getenv(
         "RABBITMQ_URL",
        "amqps://epnwrxps:FJDX9jCp6ng-bHYxHocDRsYbBqsJ6yP3@cow.rmq2.cloudamqp.com/epnwrxps"
-        # "amqps://burraqtq:yFx0LDD76FrrDRFLhd2Wk_R68YfwhG00@cow.rmq2.cloudamqp.com/burraqtq"
     )
 
     # Consuming from motor_dynamic
@@ -29,8 +28,8 @@ class Settings:
     EQUIPMENT_STATUS_ROUTING_KEY = os.getenv("EQUIPMENT_STATUS_ROUTING_KEY", "equipment.status")
 
     # Publishing → alerts notifications (direct)
-    ALERTS_QUEUE = os.getenv("ALERTS_NOTIFICATIONS_QUEUE", "equipment.alerts")
-    ALERTS_ROUTING_KEY = os.getenv("ALERTS_NOTIFICATIONS_ROUTING_KEY", "equipment.alerts")
+    ALERTS_QUEUE = os.getenv("ALERTS_QUEUE", "equipment.alerts")
+    ALERTS_ROUTING_KEY = os.getenv("ALERTS_ROUTING_KEY", "equipment.alerts")
 
     # # Publishing → alerts rag (direct)
     # ALERTS_RAG_QUEUE = os.getenv("ALERTS_RAG_QUEUE", "alerts.rag")

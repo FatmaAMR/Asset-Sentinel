@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     tavily_api_key:    str  = os.getenv("TAVILY_API_KEY", "")
 
     # ── RabbitMQ ──────────────────────────────────────────────────────────────
-    rabbitmq_url: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+    rabbitmq_url: str = os.getenv("RABBITMQ_URL", "amqps://epnwrxps:FJDX9jCp6ng-bHYxHocDRsYbBqsJ6yP3@cow.rmq2.cloudamqp.com/epnwrxps")
 
     # ── API ───────────────────────────────────────────────────────────────────
     host:      str = os.getenv("HOST",      "0.0.0.0")

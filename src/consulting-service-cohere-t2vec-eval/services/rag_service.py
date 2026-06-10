@@ -58,7 +58,7 @@ class RAGService:
                 "Plain text only, no markdown."
             ),
             temperature=0.2,                          # low = factual/consistent
-            max_tokens=1024,
+            max_tokens=512,
         )
 
         parsed = self._parse(raw_answer)

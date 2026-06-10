@@ -6,15 +6,31 @@ Consumes MessageEnvelope from motor.raw queue and processes via pipeline.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Callable
-import sys
-from pathlib import Path
 import signal
+import ssl
+import sys
 import time
+from pathlib import Path
+from typing import Any, Callable, Dict
 
+import certifi
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
-from pika.exceptions import AMQPConnectionError, AMQPChannelError
+from pika.exceptions import AMQPChannelError, AMQPConnectionError
+
+# ==============================================================================
+# GLOBAL MONKEY-PATCH: Fixes the Windows ASN1 Store Bug Across Entire Project
+# ==============================================================================
+_original_create_default_context = ssl.create_default_context
+
+def _patched_create_default_context(purpose=ssl.Purpose.SERVER_AUTH, *, cafile=None, capath=None, cadata=None):
+    """Overrides default context creation to force certifi, bypassing corrupt Windows Certs."""
+    if cafile is None and capath == None and cadata is None:
+        return _original_create_default_context(purpose, cafile=certifi.where())
+    return _original_create_default_context(purpose, cafile=cafile, capath=capath, cadata=cadata)
+
+ssl.create_default_context = _patched_create_default_context
+# ==============================================================================
 
 # Add src to path for shared imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -32,14 +48,20 @@ class SensorConsumer:
     def __init__(self):
         self._connection: pika.BlockingConnection | None = None
         self._channel: BlockingChannel | None = None
+        
+        # This will now initialize flawlessly without crashing on background publishers!
         self.pipeline = ProcessingPipeline()
+        
         self.processed_count = 0
         self.failed_count = 0
         self._shutdown = False
 
-    def connect(self) -> None:  # Added missing method
+    def connect(self) -> None:
+        """Establishes connection to RabbitMQ with secure SSL configurations."""
         try:
             params = pika.URLParameters(settings.RABBITMQ_URL)
+            
+            # Explicit parameters configuration
             params.heartbeat = 600
             params.blocked_connection_timeout = 300
             params.connection_attempts = 3
@@ -73,7 +95,8 @@ class SensorConsumer:
             logger.error(f"Failed to connect to RabbitMQ: {exc}", exc_info=True)
             raise
 
-    def close(self) -> None:  # Added missing method
+    def close(self) -> None:
+        """Gracefully closes open channels and connections."""
         try:
             if self._channel and self._channel.is_open:
                 self._channel.close()
@@ -89,6 +112,7 @@ class SensorConsumer:
                 self.pipeline.publisher.close()
 
     def start_consuming(self) -> None:
+        """Starts monitoring the queue and routes items to the callback worker."""
         if not self._channel:
             raise RuntimeError("Not connected to RabbitMQ")
 
@@ -101,7 +125,6 @@ class SensorConsumer:
             logger.info(f"[CALLBACK TRIGGERED] Received message, delivery_tag: {method.delivery_tag}")
             
             if self._shutdown:
-                # Stop consuming when shutdown flag is set
                 ch.stop_consuming()
                 return
                 
@@ -148,6 +171,7 @@ class SensorConsumer:
                 self._channel.stop_consuming()
 
     def stop_consuming(self) -> None:
+        """Sets the shutdown flag and requests an ingestion block stop."""
         self._shutdown = True
         if self._channel and self._channel.is_open:
             self._channel.stop_consuming()

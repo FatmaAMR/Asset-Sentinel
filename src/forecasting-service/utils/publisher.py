@@ -1,8 +1,10 @@
 import json
 import logging
+import ssl
 import time
 from typing import Any, Dict
 
+import certifi
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
 
@@ -14,15 +16,26 @@ logging.getLogger("pika").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
+
 class ForecastingPublisher:
+
     def __init__(self):
         self._connection: pika.BlockingConnection | None = None
         self._channel: BlockingChannel | None = None
         self.published_count = 0
 
+        # Create a secure SSL context using certifi's fallback bundle
+        self._ssl_context = ssl.create_default_context(cafile=certifi.where())
+
     def connect(self) -> None:
+        """Establishes connection bypass for Windows certificate store."""
         try:
             params = pika.URLParameters(settings.RABBITMQ_URL)
+
+            # Inject the safe context to prevent the ASN1 crash
+            params.ssl_options = pika.SSLOptions(context=self._ssl_context)
+
+            # Standard stability parameters
             params.heartbeat = 600
             params.blocked_connection_timeout = 300
             params.connection_attempts = 3
@@ -60,7 +73,9 @@ class ForecastingPublisher:
             )
 
             # Clean Info Log
-            print(f"✅ Connected to RabbitMQ | Exchange: {settings.FORECASTING_EXCHANGE}")
+            print(
+                f"✅ Connected to RabbitMQ | Exchange: {settings.FORECASTING_EXCHANGE}"
+            )
 
         except Exception as exc:
             logger.error(f"❌ Failed to connect: {exc}")
@@ -95,12 +110,20 @@ class ForecastingPublisher:
     def _serialize_payload(self, payload: Dict[str, Any]) -> bytes:
         return json.dumps(payload).encode("utf-8")
 
-    def _publish_to(self, routing_key: str, payload: Dict[str, Any], queue_name: str) -> None:
+    def _publish_to(
+        self, routing_key: str, payload: Dict[str, Any], queue_name: str
+    ) -> None:
         try:
             body = self._serialize_payload(payload)
-            message_id = payload.get("metadata", {}).get("message_id", payload.get("message_id", "unknown"))
+            message_id = payload.get("metadata", {}).get(
+                "message_id", payload.get("message_id", "unknown")
+            )
             labels = payload.get("labels")
-            should_alert = labels.get("should_alert") if isinstance(labels, dict) else payload.get("should_alert")
+            should_alert = (
+                labels.get("should_alert")
+                if isinstance(labels, dict)
+                else payload.get("should_alert")
+            )
 
             self._channel.basic_publish(
                 exchange=settings.FORECASTING_EXCHANGE,
