@@ -79,15 +79,16 @@ app = FastAPI(
     lifespan    = lifespan,
 )
 
-app.include_router(rag_router)
-if eval_router:
-    app.include_router(eval_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins = ["http://localhost:5173"],
     allow_methods = ["*"],
     allow_headers = ["*"],
 )
+app.include_router(rag_router)
+if eval_router:
+    app.include_router(eval_router)
 
 
 @app.get("/health")

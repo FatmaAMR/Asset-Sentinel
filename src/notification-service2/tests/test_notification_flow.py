@@ -1,5 +1,6 @@
 import pika
 import json
+import time
 import uuid
 import sys
 from pathlib import Path
@@ -29,9 +30,23 @@ def send_test_alert():
         "machine_id": "TURBINE-001",
         "machine_type": "Gas_Turbine",
         "predicted_rul": 45.5,
+        "mean_rul": 44.0,
         "confidence": 0.92,
         "failure_type": "Bearing Wear", # جربي تغيري دي لـ Bearing Wear عشان تشوفي الـ Mock suggestion
-        "alert_level": "Critical"
+        "alert": "High vibration detected",
+        "alert_level": "Critical",
+        "should_alert": True,
+        "channels": ["email", "sms"],
+        "processed_by": "notification-service2",
+        "file_name": "turbine_stream.csv",
+        "message": "High vibration alert for turbine 001",
+        "metadata": {
+            "message_id": f"TEST-{uuid.uuid4().hex[:6]}",
+            "timestamp": time.time()
+        },
+        "raw": {
+            "sensor_window": [0.1, 0.2, 0.3]
+        }
     }
 
     channel.basic_publish(

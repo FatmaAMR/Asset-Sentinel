@@ -20,7 +20,7 @@ export const useKnowledgeStore = create((set, get) => ({
       if (!res.ok) throw new Error(`Ingest failed: ${res.status}`);
       const data = await res.json();
       set({ isIngesting: false, ingestResult: data });
-      // Refresh status + chunks after a successful ingest
+
       get().fetchStatus();
       get().fetchChunks();
     } catch (err) {
@@ -41,7 +41,7 @@ export const useKnowledgeStore = create((set, get) => ({
       const res = await fetch(`${BASE}/rag/status`);
       if (!res.ok) throw new Error(`Status failed: ${res.status}`);
       const data = await res.json();
-      // shape: { status, total_chunks, model, ... }
+
       set({
         statusLoading: false,
         totalChunks: data.total_chunks ?? data.chunks ?? null,
@@ -52,24 +52,30 @@ export const useKnowledgeStore = create((set, get) => ({
     }
   },
 
-  // --- chunks (GET /rag/chunks) ---
+  // --- chunks (GET /rag/chunks?collection=...) ---
   chunks: [],
   chunksLoading: false,
   chunksError: null,
+  uniqueSources: [],
 
-  fetchChunks: async () => {
+  fetchChunks: async (collection = "maintenance_manuals") => {
     set({ chunksLoading: true, chunksError: null });
     try {
-      const res = await fetch(`${BASE}/rag/chunks`);
+      const res = await fetch(`${BASE}/rag/chunks?collection=${collection}`);
       if (!res.ok) throw new Error(`Chunks failed: ${res.status}`);
       const data = await res.json();
-      // shape: { chunks: [...] } or array directly
+      const chunks = Array.isArray(data) ? data : (data.chunks ?? []);
+
+      // Extract unique PDF source filenames
+      const uniqueSources = [...new Set(chunks.map((c) => c.source).filter(Boolean))];
+
       set({
         chunksLoading: false,
-        chunks: Array.isArray(data) ? data : (data.chunks ?? []),
+        chunks,
+        uniqueSources,
       });
     } catch (err) {
-      set({ chunksLoading: false, chunksError: err.message });
+      set({ chunksLoading: false, chunksError: err.message, uniqueSources: [] });
     }
   },
 

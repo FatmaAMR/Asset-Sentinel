@@ -2,8 +2,8 @@ import asyncio
 import json
 import websockets
 
-async def handler(ws, path):
-    print("Client connected:", path)
+async def handler(ws):
+    print("Client connected")
     try:
         async for message in ws:
             print("\n=== WebSocket message received ===")

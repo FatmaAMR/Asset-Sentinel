@@ -200,13 +200,13 @@ async def diagnose(body: DiagnoseRequest):
         for s in result["sources"]
     ]
     return DiagnoseResponse(
-        machine_id       = result["machine_id"],
-        query_text       = result["query_text"],
-        fault_cause      = result["fault_cause"],
-        extracted_reason = result["extracted_reason"],
-        similarity_mode  = result["similarity_mode"],
-        sources          = sources,
-    )
+    machine_id       = result["machine_id"],
+    query_text       = result["query_text"],
+    fault_cause      = result["fault_cause"],
+    extracted_reason = result["extracted_reason"],
+    similarity_mode  = result.get("similarity_mode", "sensor_only"),
+    sources          = sources,
+)  
 
 
 @router.post("/machine-query", response_model=MachineQueryResponse)

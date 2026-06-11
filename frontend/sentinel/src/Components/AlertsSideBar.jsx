@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import useAssetStore from '../stores/assetStore';
 
+const MAX_VISIBLE = 5;
+
 const severityConfig = {
   Critical: {
     border: 'border-failure',
@@ -14,6 +16,13 @@ const severityConfig = {
     bg: 'bg-warning/5',
     badge: 'text-warning',
     label: 'WARNING',
+    showActions: false,
+  },
+  Scheduled: {
+    border: 'border-blue-400',
+    bg: 'bg-blue-50',
+    badge: 'text-blue-600',
+    label: 'SCHEDULED',
     showActions: false,
   },
 };
@@ -32,7 +41,9 @@ export default function AlertsSidebar() {
     fetchAlerts();
   }, []);
 
-  const criticalCount = alerts.filter(a => a.severity === 'Critical').length;
+  const criticalCount = alerts.filter((a) => a.severity === 'Critical').length;
+  const visible = alerts.slice(0, MAX_VISIBLE);
+  const overflow = alerts.length - MAX_VISIBLE;
 
   return (
     <div className="space-y-8">
@@ -52,44 +63,57 @@ export default function AlertsSidebar() {
           ) : alerts.length === 0 ? (
             <p className="text-slate-400 text-sm">No active alerts</p>
           ) : (
-            alerts.map((alert) => {
-              const config = severityConfig[alert.severity] ?? {
-                border: 'border-gray-300',
-                bg: 'bg-gray-50',
-                badge: 'text-slate-500',
-                label: alert.severity.toUpperCase(),
-                showActions: false,
-              };
-              return (
-                <div
-                  key={alert.alert_id}
-                  className={`p-4 ${config.bg} border-l-4 ${config.border} rounded-xl`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className={`text-xs font-bold ${config.badge}`}>{config.label}</span>
-                    <span className="text-[10px] text-slate-400">{timeAgo(alert.timestamp)}</span>
-                  </div>
-                  <p className="text-sm font-medium leading-snug text-slate-600">
-                    {alert.message}
-                  </p>
-                  {config.showActions && (
-                    <div className="mt-3 flex gap-2">
-                      <button className="text-[10px] font-bold bg-failure text-white px-3 py-1.5 rounded-lg">
-                        AI Diagnosis
-                      </button>
-                      <button className="text-[10px] font-bold bg-white px-3 py-1.5 rounded-lg border border-gray-200">
-                        Ignore
-                      </button>
+            <>
+              {visible.map((alert) => {
+                const config = severityConfig[alert.severity] ?? {
+                  border: 'border-gray-300',
+                  bg: 'bg-gray-50',
+                  badge: 'text-slate-500',
+                  label: alert.severity?.toUpperCase() ?? 'ALERT',
+                  showActions: false,
+                };
+                return (
+                  <div
+                    key={alert.alert_id}
+                    className={`p-4 ${config.bg} border-l-4 ${config.border} rounded-xl`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className={`text-xs font-bold ${config.badge}`}>
+                        {config.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {timeAgo(alert.timestamp)}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })
+                    <p className="text-sm font-medium leading-snug text-slate-600">
+                      {alert.message}
+                    </p>
+                    {config.showActions && (
+                      <div className="mt-3 flex gap-2">
+                        <button className="text-[10px] font-bold bg-failure text-white px-3 py-1.5 rounded-lg">
+                          AI Diagnosis
+                        </button>
+                        <button className="text-[10px] font-bold bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+                          Ignore
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {overflow > 0 && (
+                <p className="text-center text-xs text-slate-400 pt-1">
+                  +{overflow} more alert{overflow > 1 ? 's' : ''} — check Reports for full list
+                </p>
+              )}
+            </>
           )}
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-100 space-y-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Quick Actions</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+            Quick Actions
+          </p>
           <button className="w-full flex items-center justify-between p-3 rounded-2xl bg-primary text-white font-semibold text-sm hover:scale-[1.02] transition-transform">
             Generate Diagnostic Report
             <span className="material-icons-round text-lg">auto_awesome</span>
@@ -100,6 +124,7 @@ export default function AlertsSidebar() {
           </button>
         </div>
       </div>
+
       <div className="bg-primary/5 rounded-3xl p-6 border border-primary/10">
         <h4 className="text-sm font-bold mb-4">Maintenance Progress</h4>
         <div className="flex items-center gap-4 mb-4">
@@ -115,7 +140,7 @@ export default function AlertsSidebar() {
           Schedule Inspections
         </button>
       </div>
-
+      
     </div>
   );
 }

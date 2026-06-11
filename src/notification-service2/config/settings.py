@@ -24,8 +24,8 @@ class Settings:
     RABBITMQ_ALERT_ROUTING_KEY = os.getenv("RABBITMQ_ALERT_ROUTING_KEY", "equipment.alerts")
 
     # ── External services ─────────────────────────────────────────────────────
-    CONSULTING_SERVICE_BASE_URL = os.getenv("CONSULTING_SERVICE_URL", "http://localhost:8001")
-    MANAGERIAL_SERVICE_BASE_URL = os.getenv("MANAGERIAL_SERVICE_URL", "http://localhost:8002")
+    CONSULTING_SERVICE_BASE_URL = os.getenv("CONSULTING_SERVICE_URL", "http://localhost:8002")
+    MANAGERIAL_SERVICE_BASE_URL = os.getenv("MANAGERIAL_SERVICE_URL", "http://localhost:8006")
     WEBSOCKET_URL = os.getenv("WEBSOCKET_URL", "ws://localhost:8765/ws/alerts")
 
     @property

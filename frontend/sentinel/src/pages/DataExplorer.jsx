@@ -3,12 +3,12 @@ import { useState } from "react";
 import { useQueryingStore } from "../stores/Usequeryingstore";
 
 const SUGGESTED_QUERIES = [
-  { icon: "trending_down", label: "Lowest RUL machines", question: "Show me the 5 machines with the lowest remaining useful life" },
-  { icon: "warning", label: "Machines needing alerts", question: "Which machines have should_alert set to true" },
+  { icon: "trending_down", label: "Lowest RUL machines", question: "Show me the 5 machines with the lowest remaining useful life, return machine_id, label and rul" },
+  { icon: "warning", label: "Machines needing alerts", question: "Show machines where label is WARNING or CRITICAL, return machine_id, label and rul ordered by rul ascending" },
   { icon: "category", label: "All health labels", question: "Show me all distinct machine labels and how many machines have each label" },
-  { icon: "schedule", label: "Latest readings", question: "Show me the most recent readings for each machine" },
-  { icon: "analytics", label: "Average RUL by label", question: "What is the average remaining useful life grouped by health label" },
-  { icon: "crisis_alert", label: "Critical machines", question: "Show all machines where label is not HEALTHY" },
+  { icon: "schedule", label: "Latest readings", question: "Show me 10 machines with their machine_id, label and rul ordered by rul ascending" },
+{ icon: "analytics", label: "Average RUL by label", question: "SELECT label, COUNT(*) as machine_count, ROUND(AVG(CAST(rul AS REAL)), 2) as avg_rul FROM assets GROUP BY label ORDER BY avg_rul ASC" },
+  { icon: "crisis_alert", label: "Critical machines", question: "Show all machines where label is CRITICAL or WARNING, return machine_id, label and rul ordered by rul ascending" },
 ];
 
 // eslint-disable-next-line react/prop-types
@@ -186,7 +186,7 @@ export default function DataExplorer() {
 
               {result && !isLoading && (
                 <div className="space-y-4">
-                  <p className="text-sm text-slate-500 italic">"{result.question}" </p>
+                  <p className="text-sm text-slate-500 italic">&quot;{result.question}&quot; </p>
                   <SqlBadge sql={result.sql} />
                   {result.results.length > 0 ? (
                     <ResultTable results={result.results} />
@@ -275,6 +275,8 @@ export default function DataExplorer() {
                 { col: "rul", type: "TEXT", note: "cast to REAL for math" },
                 { col: "timestamp", type: "TEXT", note: "ISO datetime" },
                 { col: "message_id", type: "TEXT", note: "unique UUID" },
+                { col: "should_alert", type: "TEXT", note: "'True' or 'False'" },
+                { col: "alert_level", type: "TEXT", note: "raw pipeline level" },
               ].map((f) => (
                 <div key={f.col} className="flex items-start gap-2 mb-2">
                   <code className="text-xs text-blue-300 font-mono flex-shrink-0">{f.col}</code>

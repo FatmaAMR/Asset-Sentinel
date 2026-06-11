@@ -23,6 +23,7 @@ export default function Navbar() {
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm h-16">
             <Link to="/" className={linkClass("/")}>Dashboard</Link>
+            <Link to="/data-explorer" className={linkClass("/data-explorer")}>Data Explorer</Link>
             <Link to="/knowledge" className={linkClass("/knowledge")}>Knowledge Base</Link>
             <Link to="/diagnosis" className={linkClass("/diagnosis")}>Diagnostics</Link>
             <Link to="/export" className={linkClass("/export")}>Reports</Link>
@@ -30,7 +31,6 @@ export default function Navbar() {
             <Link to="/history" className={linkClass("/history")}>History & Trends</Link>
             <Link to="/assets" className={linkClass("/assets")}>Assets</Link>
             <Link to="/thresholds" className={linkClass("/thresholds")}>Thresholds</Link>
-            <Link to="/data-explorer" className={linkClass("/data-explorer")}>Data Explorer</Link>
           </div>
         </div>
         

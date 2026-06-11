@@ -21,13 +21,40 @@ class DatabaseManager:
 
     def execute_query(self, sql_query: str):
         try:
-            # Fetch all documents from MongoDB
             documents = list(self.collection.find({}, {"_id": 0}))
 
             if not documents:
                 return []
 
-            # Build in-memory SQLite from MongoDB documents
+            # Keep only the latest document per machine
+            latest_per_machine = {}
+            for doc in documents:
+                machine_id = doc.get("machine_id")
+                if not machine_id:
+                    continue
+                ts = doc.get("timestamp")
+
+                # Normalize timestamp to a comparable numeric value
+                if hasattr(ts, "timestamp"):        # datetime object
+                    ts_val = ts.timestamp()
+                elif isinstance(ts, (int, float)):  # unix timestamp
+                    ts_val = float(ts)
+                elif isinstance(ts, str):           # ISO string
+                    ts_val = ts
+                else:
+                    ts_val = 0
+
+                if machine_id not in latest_per_machine:
+                    latest_per_machine[machine_id] = (ts_val, doc)
+                else:
+                    existing_ts_val = latest_per_machine[machine_id][0]
+                    if ts_val > existing_ts_val:
+                        latest_per_machine[machine_id] = (ts_val, doc)
+
+            documents = [v[1] for v in latest_per_machine.values()]
+            print(f"[DEBUG] Unique machines after dedup: {len(documents)}")
+            logger.info(f"[DB] Deduplicated to {len(documents)} machines (latest per machine)")
+
             conn = self._build_in_memory_db(documents)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -43,31 +70,38 @@ class DatabaseManager:
     def _build_in_memory_db(self, documents: list) -> sqlite3.Connection:
         conn = sqlite3.connect(":memory:")
 
-        # Flatten documents — drop nested dicts/lists, keep scalar fields
         flat_docs = []
         for doc in documents:
             flat = {}
             for k, v in doc.items():
                 if isinstance(v, (str, int, float, bool)) or v is None:
                     flat[k] = v
-                elif hasattr(v, "isoformat"):  # datetime
+                elif hasattr(v, "isoformat"):
                     flat[k] = v.isoformat()
-                # skip nested dicts/lists (e.g. raw, window_sliding)
+                elif isinstance(v, dict) and k == "raw":
+                    raw = v
+                    flat["should_alert"] = str(raw.get("should_alert", False))
+                    flat["alert_level"]  = str(raw.get("alert_level", ""))
+                    flat["confidence"]   = str(raw.get("confidence", ""))
+                    flat["failure_type"] = str(raw.get("failure_type", ""))
+                # skip other nested dicts/lists
             flat_docs.append(flat)
 
         if not flat_docs:
             return conn
 
-        # Create table from first document's keys
-        columns = list(flat_docs[0].keys())
-        cols_def = ", ".join(f'"{c}" TEXT' for c in columns)
+        all_keys = list(dict.fromkeys(k for doc in flat_docs for k in doc.keys()))
+        cols_def = ", ".join(f'"{c}" TEXT' for c in all_keys)
         conn.execute(f"CREATE TABLE IF NOT EXISTS assets ({cols_def})")
 
-        placeholders = ", ".join("?" for _ in columns)
+        placeholders = ", ".join("?" for _ in all_keys)
         for doc in flat_docs:
-            values = [str(doc.get(c, "")) for c in columns]
+            values = [
+                str(doc.get(c)) if doc.get(c) is not None else ""
+                for c in all_keys
+            ]
             conn.execute(
-                f'INSERT INTO assets ({", ".join(f"{chr(34)}{c}{chr(34)}" for c in columns)}) VALUES ({placeholders})',
+                f'INSERT INTO assets ({", ".join(f"{chr(34)}{c}{chr(34)}" for c in all_keys)}) VALUES ({placeholders})',
                 values
             )
 

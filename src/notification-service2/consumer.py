@@ -12,8 +12,10 @@ from typing import Any, Dict
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
 
-# Add src to path for shared imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Add service directory and src to path for shared imports
+service_root = Path(__file__).resolve().parent
+sys.path.insert(0, str(service_root))
+sys.path.insert(0, str(service_root.parent))
 
 # Use your existing settings structure
 from config.settings import settings
@@ -44,10 +46,10 @@ class NotificationConsumer:
             self._channel = self._connection.channel()
             self._channel.basic_qos(prefetch_count=1)
 
-            # Declare the exchange as TOPIC to match the system architecture
+            # Declare the exchange with the broker's existing type
             self._channel.exchange_declare(
                 exchange=settings.RABBITMQ_EXCHANGE,
-                exchange_type='topic',
+                exchange_type='direct',
                 durable=True,
             )
             

@@ -6,10 +6,14 @@ export default function ContextExplorer() {
   const {
     fetchStatus,
     fetchCollections,
+    fetchChunks,
     totalChunks,
     isReady,
     collections,
     collectionsLoading,
+    chunks,
+    chunksLoading,
+    uniqueSources,
   } = useKnowledgeStore();
 
   const {
@@ -23,11 +27,26 @@ export default function ContextExplorer() {
 
   const [input, setInput] = useState("");
   const [question, setQuestion] = useState("");
+  const [selectedCollection, setSelectedCollection] = useState(null);
 
   useEffect(() => {
     fetchStatus();
     fetchCollections();
+    fetchChunks("maintenance_manuals");
   }, []);
+
+  // When collections load, auto-select first
+  useEffect(() => {
+    if (collections.length > 0 && !selectedCollection) {
+      const first = typeof collections[0] === "string" ? collections[0] : collections[0].name;
+      setSelectedCollection(first);
+    }
+  }, [collections]);
+
+  const handleSelectCollection = (name) => {
+    setSelectedCollection(name);
+    fetchChunks(name);
+  };
 
   const handleAsk = async (e) => {
     e.preventDefault();
@@ -36,22 +55,7 @@ export default function ContextExplorer() {
     await askConsulting(input.trim(), 4);
     setInput("");
   };
-
-  // Build chunk preview cards from collections or show placeholders
-  const chunkCards = collections.slice(0, 3).map((col, i) => ({
-    id: col.id ?? col.chunk_id ?? `#${4421 + i}`,
-    vector: col.vector ?? "[0.892, 0.221, -0.44...]",
-    relevance: i === 0 ? "High Relevance" : null,
-  }));
-
-  // Pad with placeholders if needed
-  while (chunkCards.length < 2) {
-    chunkCards.push({
-      id: `#${4421 + chunkCards.length}`,
-      vector: "[0.892, 0.221, -0.44...]",
-      relevance: chunkCards.length === 0 ? "High Relevance" : null,
-    });
-  }
+  
 
   return (
     <section className="bg-primary text-white rounded-[2.5rem] p-8 h-full relative overflow-hidden shadow-2xl shadow-primary/20">
@@ -71,11 +75,33 @@ export default function ContextExplorer() {
           documentation for local inference.
         </p>
 
-        {/* Chunk preview cards from GET /rag/collections */}
+        {/* Collection selector pills */}
+        {!collectionsLoading && collections.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {collections.map((col) => {
+              const name = typeof col === "string" ? col : col.name;
+              return (
+                <button
+                  key={name}
+                  onClick={() => handleSelectCollection(name)}
+                  className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${
+                    selectedCollection === name
+                      ? "bg-white text-primary border-white"
+                      : "bg-white/10 text-white/70 border-white/20 hover:bg-white/20"
+                  }`}
+                >
+                  {name.replace(/_/g, " ")}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* PDF document cards derived from chunk sources */}
         <div className="space-y-3">
-          {collectionsLoading ? (
+          {chunksLoading ? (
             <div className="space-y-2">
-              {[1, 2].map((i) => (
+              {[1, 2, 3].map((i) => (
                 <div key={i} className="bg-white/10 rounded-2xl p-4 animate-pulse">
                   <div className="h-3 bg-white/20 rounded w-1/3 mb-2" />
                   <div className="h-2 bg-white/10 rounded w-full mb-1" />
@@ -83,35 +109,49 @@ export default function ContextExplorer() {
                 </div>
               ))}
             </div>
+          ) : uniqueSources.length === 0 ? (
+            <div className="bg-white/10 border border-white/20 rounded-2xl p-4 text-white/50 text-sm text-center">
+              No documents indexed yet.
+            </div>
           ) : (
-            chunkCards.map((card, i) => (
-              <div key={i} className="bg-white/10 border border-white/20 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-white/60 uppercase tracking-widest">
-                    CHUNK ID: {card.id}
-                  </span>
-                  {card.relevance && (
-                    <span className="text-[10px] font-bold bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full">
-                      {card.relevance}
+            uniqueSources.slice(0, 3).map((source, i) => {
+              const sourceChunks = chunks.filter((c) => c.source === source);
+              const preview = sourceChunks[0]?.text_preview ?? "";
+              return (
+                <div key={source} className="bg-white/10 border border-white/20 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-white/80 truncate pr-2 flex items-center gap-1">
+                      <span className="material-symbols-rounded text-xs">picture_as_pdf</span>
+                      {source}
                     </span>
-                  )}
+                    {i === 0 && (
+                      <span className="text-[10px] font-bold bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full flex-shrink-0">
+                        Active
+                      </span>
+                    )}
+                    <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full flex-shrink-0">
+                      {sourceChunks.length} chunks
+                    </span>
+                  </div>
+                  <div className="space-y-1 mb-2">
+                    <div className="h-1.5 bg-white/30 rounded-full w-full" />
+                    <div className="h-1.5 bg-white/20 rounded-full w-4/5" />
+                    <div className="h-1.5 bg-white/10 rounded-full w-3/5" />
+                  </div>
+                  <p className="text-white/60 text-[11px] font-mono leading-relaxed line-clamp-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block mr-1" />
+                    {preview}
+                  </p>
+                  <p className="text-white/30 text-[10px] font-mono mt-1">
+                    {sourceChunks[0]?.embed_type ?? ""}
+                  </p>
                 </div>
-                {/* Vector bar visualization */}
-                <div className="space-y-1 mb-2">
-                  <div className="h-1.5 bg-white/30 rounded-full w-full" />
-                  <div className="h-1.5 bg-white/20 rounded-full w-4/5" />
-                  <div className="h-1.5 bg-white/10 rounded-full w-3/5" />
-                </div>
-                <p className="text-white/60 text-[11px] font-mono flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                  Vector: {card.vector}
-                </p>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
-        {/* Ask input → POST /rag/ask */}
+        {/* Ask input */}
         <form onSubmit={handleAsk} className="flex gap-2">
           <input
             type="text"
@@ -132,7 +172,7 @@ export default function ContextExplorer() {
           </button>
         </form>
 
-        {/* Answer from /rag/ask */}
+        {/* Answer */}
         {(rawAnswer || error) && (
           <div className="bg-white/10 border border-white/20 rounded-2xl p-4 text-sm space-y-3">
             {error ? (
@@ -175,7 +215,7 @@ export default function ContextExplorer() {
           </div>
         )}
 
-        {/* Bottom card — live chunk count from GET /rag/status */}
+        {/* Bottom card */}
         <div className="mt-auto bg-white rounded-[1.5rem] p-6 text-slate-900">
           <h4 className="font-bold mb-1">Indexing Efficiency</h4>
           <div className="flex items-center justify-between mb-2">

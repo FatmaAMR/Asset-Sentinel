@@ -1,9 +1,22 @@
 from __future__ import annotations
 
-import httpx
+# ── path setup MUST be first ──────────────────────────────────────────────────
+import sys
+from pathlib import Path
+service_root = Path(__file__).resolve().parent.parent  # notification-service2/
+sys.path.insert(0, str(service_root))
+sys.path.insert(1, str(service_root.parent))           # src/ fallback
+
+import httpx     # all other imports below, unchanged
 import logging
 import json
+import sys
+from pathlib import Path
 from typing import Any, Dict
+
+# Add local service root first so notification-service2/schemas wins over src/schemas
+service_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(service_root))
 
 try:
     import websockets
@@ -44,23 +57,30 @@ class NotificationDispatcher:
 
         # Step 2 — fetch staff list
         print(f"[Step 2] Fetching staff list …")
-        print(f"Recipients count = {len(recipients)}")
         recipients = await self._fetch_system_users()
+        print(f"Recipients count = {len(recipients)}")
         print(f" > Staff: {json.dumps(recipients, indent=2)}")
 
         # Step 3 — build & log notification packages
         print(f"[Step 3] Building notification payloads …")
         suggestion = (
-            diagnosis.get("suggestion")
+           diagnosis.get("fault_cause")
+            or diagnosis.get("extracted_reason")
+            or diagnosis.get("suggestion")
             or diagnosis.get("answer")
             or "Standard inspection required."
-        )
+)
+
         if not recipients:
-              await self._push_websocket_notification({
-             "message": "Test notification",
-            "machine_id": alert.machine_id,
-             "rul": alert.mean_rul
-       })
+            logger.warning("No recipients found; sending fallback notification only.")
+            await self._push_websocket_notification({
+                "message": "Test notification",
+                "machine_id": alert.machine_id,
+                "rul": alert.mean_rul,
+            })
+            print(f" [COMPLETED] Notification fallback sent for {alert.message_id}")
+            print("=" * 60 + "\n")
+            return
 
         for person in recipients:
             json_payload = format_notification_body(
