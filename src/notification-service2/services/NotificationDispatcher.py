@@ -5,6 +5,11 @@ import logging
 import json
 from typing import Any, Dict
 
+try:
+    import websockets
+except ImportError:  # pragma: no cover
+    websockets = None
+
 from schemas.models import AlertMessage, DiagnoseRequest, DiagnoseResponse
 from utils.helpers import format_notification_body
 from config import settings
@@ -16,9 +21,13 @@ class NotificationDispatcher:
     def __init__(self):
         self.diagnose_endpoint  = settings.consulting_diagnose_url
         self.managerial_endpoint = settings.managerial_api_url
+        self.websocket_url = settings.WEBSOCKET_URL
         print(f"\n[System] Dispatcher Online.")
         print(f" > Consulting /diagnose : {self.diagnose_endpoint}")
-        print(f" > Managerial Source   : {self.managerial_endpoint}\n")
+        print(f" > Managerial Source   : {self.managerial_endpoint}")
+        print(f" > WebSocket Target    : {self.websocket_url}\n")
+        if websockets is None:
+            logger.warning("websockets package not installed; WebSocket notifications are disabled.")
 
     # ── Main entry-point ──────────────────────────────────────────────────────
 
@@ -35,6 +44,7 @@ class NotificationDispatcher:
 
         # Step 2 — fetch staff list
         print(f"[Step 2] Fetching staff list …")
+        print(f"Recipients count = {len(recipients)}")
         recipients = await self._fetch_system_users()
         print(f" > Staff: {json.dumps(recipients, indent=2)}")
 
@@ -45,6 +55,12 @@ class NotificationDispatcher:
             or diagnosis.get("answer")
             or "Standard inspection required."
         )
+        if not recipients:
+              await self._push_websocket_notification({
+             "message": "Test notification",
+            "machine_id": alert.machine_id,
+             "rul": alert.mean_rul
+       })
 
         for person in recipients:
             json_payload = format_notification_body(
@@ -67,6 +83,8 @@ class NotificationDispatcher:
                     "source_service": "Notification-Service-V1",
                 },
             }
+
+            await self._push_websocket_notification(notification_package)
 
             print(f"\n[Final Output for {person.get('name')}]:")
             print(json.dumps(notification_package, indent=2, default=str))
@@ -139,3 +157,25 @@ class NotificationDispatcher:
         except Exception as exc:
             logger.error("Managerial API error: %s", exc)
             return []
+
+    async def _push_websocket_notification(self, payload: Dict[str, Any]) -> None:
+        print("FUNCTION ENTERED")
+        if websockets is None:
+            print("[⚠️] WebSocket push skipped: websockets package not installed.")
+            logger.warning("WebSocket push skipped because websockets package is not installed.")
+            return
+
+        if not self.websocket_url:
+            print("[⚠️] WebSocket push skipped: WEBSOCKET_URL not configured.")
+            logger.warning("WebSocket push skipped because WEBSOCKET_URL is not configured.")
+            return
+
+        try:
+            print(f"[📤] Sending WebSocket notification to {self.websocket_url}...")
+            async with websockets.connect(self.websocket_url, ping_interval=20, ping_timeout=10) as ws:
+                await ws.send(json.dumps(payload))
+                print(f"[✅] WebSocket notification sent successfully!")
+                logger.info(f"WebSocket notification sent to {self.websocket_url}")
+        except Exception as exc:
+            print(f"[❌] WebSocket send failed: {type(exc).__name__}: {exc}")
+            logger.error(f"Failed to send WebSocket notification: {exc}")

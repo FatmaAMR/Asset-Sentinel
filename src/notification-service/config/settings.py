@@ -30,7 +30,8 @@ class Settings:
     # Used by the Notification Dispatcher to communicate with other microservices
     CONSULTING_SERVICE_URL = os.getenv("CONSULTING_SERVICE_URL", "http://localhost:8001")
     MANAGERIAL_SERVICE_URL = os.getenv("MANAGERIAL_SERVICE_URL", "http://localhost:8002")
-
+    WEBSOCKET_URL = os.getenv("WEBSOCKET_URL", "ws://localhost:8765/ws/alerts")
+    
     # --- Database Configuration ---
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./shared.db")
 

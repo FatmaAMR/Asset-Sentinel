@@ -64,9 +64,15 @@
 import httpx
 import logging
 import json
+from typing import Any
 from schemas.models import AlertMessage
 from utils.helpers import format_notification_body
 from config import settings
+
+try:
+    import websockets
+except ImportError:  # pragma: no cover
+    websockets = None
 
 logger = logging.getLogger(__name__)
 
@@ -74,15 +80,19 @@ class NotificationDispatcher:
     def __init__(self):
         self.consulting_endpoint = settings.consulting_api_url
         self.managerial_endpoint = settings.managerial_api_url
+        self.websocket_url = settings.WEBSOCKET_URL
         print(f"\n[System] Dispatcher Online.")
         print(f" > Consulting Source: {self.consulting_endpoint}")
-        print(f" > Managerial Source: {self.managerial_endpoint}\n")
+        print(f" > Managerial Source: {self.managerial_endpoint}")
+        print(f" > WebSocket Target: {self.websocket_url}\n")
+        if websockets is None:
+            logger.warning("websockets package not installed; websocket notifications are disabled.")
 
     async def process_alert(self, alert: AlertMessage):
-        print("="*60)
+        print("=" * 60)
         print(f" [NEW ALERT RECEIVED]")
         print(f" ID: {alert.message_id} | Machine: {alert.machine_id}")
-        print("-"*60)
+        print("-" * 60)
 
         # 1. Consulting Service Step
         print(f"[Step 1] Requesting Expert Suggestion for: {alert.failure_type}")
@@ -96,51 +106,70 @@ class NotificationDispatcher:
 
         # 3. Final Formatting & Suggestions
         print(f"[Step 3] Constructing Final JSON Payload...")
-        
+
         for person in recipients:
-            # Generate the base notification
             json_payload = format_notification_body(
-                alert.machine_id, 
-                alert.predicted_rul, 
-                suggestion
+                alert.machine_id,
+                alert.predicted_rul,
+                suggestion,
             )
-            
-            # Adding Interactive Quick Responses for the Frontend
+
             quick_responses = [
                 "Acknowledge & Start Maintenance",
                 "Request Backup Team",
-                "Mute Alert for 1 Hour"
+                "Mute Alert for 1 Hour",
             ]
 
             notification_package = {
-                "target_user": person['name'],
-                "target_email": person['email'],
+                "target_user": person["name"],
+                "target_email": person["email"],
                 "notification_display": json_payload,
                 "interactive_options": quick_responses,
                 "meta_data": {
                     "raw_alert": alert.dict(),
-                    "source_service": "Notification-Service-V1"
-                }
+                    "source_service": "Notification-Service-V1",
+                },
             }
 
-            # Printing the full final structure to see the results
+            await self._push_websocket_notification(notification_package)
+
             print(f"\n[Final Output for {person['name']}]:")
             print(json.dumps(notification_package, indent=2))
-        
-        print("-"*60)
+
+        print("-" * 60)
         print(f" [COMPLETED] All notifications dispatched for {alert.message_id}")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
+
+    async def _push_websocket_notification(self, payload: dict[str, Any]) -> None:
+        if websockets is None:
+            print("[⚠️] WebSocket push skipped: websockets package not installed.")
+            logger.warning("WebSocket push skipped because websockets package is not installed.")
+            return
+
+        if not self.websocket_url:
+            print("[⚠️] WebSocket push skipped: WEBSOCKET_URL not configured.")
+            logger.warning("WebSocket push skipped because WEBSOCKET_URL is not configured.")
+            return
+
+        try:
+            print(f"[📤] Sending WebSocket notification to {self.websocket_url}...")
+            async with websockets.connect(self.websocket_url, ping_interval=20, ping_timeout=10) as ws:
+                await ws.send(json.dumps(payload))
+                print(f"[✅] WebSocket notification sent successfully!")
+                logger.info(f"WebSocket notification sent to {self.websocket_url}")
+        except Exception as exc:
+            print(f"[❌] WebSocket send failed: {type(exc).__name__}: {exc}")
+            logger.error(f"Failed to send WebSocket notification: {exc}")
 
     async def _fetch_suggestion(self, failure_type: str) -> str:
-       try:
-        async with httpx.AsyncClient() as client:
-            payload = {"question": f"What should I do for a {failure_type} failure?"}
-            response = await client.post(self.consulting_endpoint, json=payload, timeout=10.0)
-            return response.json().get("answer", "Check machine immediately.")
-       except Exception as e:
-        logger.error(f"Consulting API Error: {e}")
-        return "Standard inspection required (Service Offline)."
-
+        try:
+            async with httpx.AsyncClient() as client:
+                payload = {"question": f"What should I do for a {failure_type} failure?"}
+                response = await client.post(self.consulting_endpoint, json=payload, timeout=10.0)
+                return response.json().get("answer", "Check machine immediately.")
+        except Exception as e:
+            logger.error(f"Consulting API Error: {e}")
+            return "Standard inspection required (Service Offline)."
 
     async def _fetch_system_users(self) -> list:
         try:
