@@ -20,15 +20,12 @@ _collection: Collection | None = None
 def _get_database_name() -> str:
     if DATABASE_NAME:
         return DATABASE_NAME
-
     if not MONGO_URL:
         raise ValueError("DB_URL is required to determine the MongoDB database name.")
-
     parsed = parse_uri(MONGO_URL)
     database = parsed.get("database")
     if database:
         return database
-
     return "Sentinel"
 
 
@@ -36,7 +33,6 @@ def _ensure_time_series_collection(client: MongoClient, db_name: str, collection
     db = client[db_name]
     if collection_name in db.list_collection_names():
         return db[collection_name]
-
     try:
         return db.create_collection(
             collection_name,
@@ -68,11 +64,38 @@ def get_collection() -> Collection:
     return _collection
 
 
+# Map pipeline alert_level/label → frontend status strings
+_STATUS_MAP = {
+    "HEALTHY":  "Normal",
+    "NORMAL":   "Normal",
+    "WARNING":  "Warning",
+    "CRITICAL": "Critical",
+    "SCHEDULED": "Scheduled",
+}
+
+def _safe_float(val, fallback=0.0) -> float:
+    """Handle MongoDB $numberDouble special objects and plain floats."""
+    if isinstance(val, dict):
+        v = val.get("$numberDouble", fallback)
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return fallback
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return fallback
+
 def get_mock_influx_data() -> list:
     """
-    Fetch documents from MongoDB and map them to the flat format
-    that analytics.py expects:
-      { machine_id, timestamp, temperature, vibration, rul_days }
+    Read pre-computed predictions from MongoDB (written by the pipeline).
+    Fields used directly from the document — no recomputation:
+      machine_id  → doc.machine_id
+      rul_days    → doc.rul  (predicted RUL from the model)
+      status      → doc.label / doc.raw.alert_level  (pipeline output)
+      timestamp   → doc.timestamp
+    temperature/vibration kept as 0 since they're not meaningful display
+    values — status and RUL come from the model, not raw sensors.
     """
     try:
         collection = get_collection()
@@ -84,28 +107,40 @@ def get_mock_influx_data() -> list:
             rul        = doc.get("rul", 0)
             timestamp  = doc.get("timestamp")
 
-            # Convert datetime to isoformat string if needed
             if hasattr(timestamp, "isoformat"):
                 timestamp = timestamp.isoformat()
             else:
                 timestamp = str(timestamp)
 
-            # Pull sensor readings from raw.window_sliding last entry
-            temperature = 0.0
-            vibration   = 0.0
-            raw = doc.get("raw", {})
-            window = raw.get("window_sliding", [])
-            if window:
-                last = window[-1]
-                temperature = float(last.get("temperature", 0.0))
-                vibration   = float(last.get("vibration",   0.0))
+            # Status comes from the pipeline — trust it directly
+            raw         = doc.get("raw", {})
+            alert_level = (
+                doc.get("label")
+                or raw.get("alert_level")
+                or raw.get("alert")
+                or "HEALTHY"
+            ).upper()
+            status = _STATUS_MAP.get(alert_level, "Normal")
+
+            # confidence from the model (0–1), stored for future use
+            confidence = raw.get("confidence", None)
+
+            # Compute avg temperature (s_4) and avg vibration (s_9) from raw arrays
+            raw_inner = raw.get("raw", {})
+            s4_arr = [_safe_float(v) for v in raw_inner.get("s_4", []) if v is not None]
+            s9_arr = [_safe_float(v) for v in raw_inner.get("s_9", []) if v is not None]
+            avg_temp = round(sum(s4_arr) / len(s4_arr), 2) if s4_arr else 0.0
+            avg_vibe = round(sum(s9_arr) / len(s9_arr), 2) if s9_arr else 0.0
 
             mapped.append({
-                "machine_id":  machine_id,
-                "timestamp":   timestamp,
-                "temperature": temperature,
-                "vibration":   vibration,
-                "rul_days":    int(rul),
+                "machine_id":            machine_id,
+                "timestamp":             timestamp,
+                "temperature":           avg_temp,
+                "vibration":             avg_vibe,
+                "rul_days":              int(rul),
+                "status":                status,
+                "confidence":            confidence,
+                "scheduled_maintenance": raw.get("scheduled_maintenance", False),
             })
 
         return mapped

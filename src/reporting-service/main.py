@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router as reports_router
-
+from api.sensor_window_router import router as sensor_window_router
 app = FastAPI(title="Sentinel-AI Reporting Service", version="1.0")
 
 # إعدادات الـ CORS عشان الداشبورد تعرف تكلم السيرفر من غير ما المتصفح يعمل Block
@@ -15,7 +15,7 @@ app.add_middleware(
 
 # بنربط الـ Routes اللي عملناها بالتطبيق الأساسي
 app.include_router(reports_router, prefix="/api/v1/reports", tags=["Reports"])
-
+app.include_router(sensor_window_router)
 @app.get("/")
 async def root():
     return {"message": "Reporting Service is up and running smoothly! 🚀"}

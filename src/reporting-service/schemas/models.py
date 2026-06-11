@@ -15,12 +15,13 @@ class MachineAggregatedReport(BaseModel):
     avg_vibration: float
     max_vibration: float
     current_rul_days: int
-    status: str             # "Normal", "Warning", "Critical"
+    status: str  # "Normal", "Warning", "Critical", "Scheduled"
 
 class FactoryReport(BaseModel):
     report_time: str
     total_machines: int
     critical_machines_count: int
+    active_sensors: int          # total raw sensor readings across all machines
     machines_details: List[MachineAggregatedReport]
 
 class Alert(BaseModel):
