@@ -34,7 +34,7 @@ from typing import Any
 import aio_pika
 import aio_pika.abc
 
-from config.settings import settings   # adjust import to match your settings path
+from config import settings
 
 logger = logging.getLogger("notification_rag_consumer")
 
@@ -98,7 +98,7 @@ def get_stream_info(machine_id: str) -> dict:
 # ── Background consumer ───────────────────────────────────────────────────────
 
 def _queue_name(machine_id: str) -> str:
-    return f"notif.diagnosis.{machine_id}"
+    return f"diagnosis.notifications.{machine_id}"
 
 
 async def _consume(machine_id: str) -> None:
@@ -113,7 +113,7 @@ async def _consume(machine_id: str) -> None:
 
     while True:   # reconnect loop
         try:
-            conn = await aio_pika.connect_robust(settings.rabbitmq_url)
+            conn = await aio_pika.connect_robust(settings.RABBITMQ_URL)
             async with conn:
                 channel  = await conn.channel()
                 await channel.set_qos(prefetch_count=20)

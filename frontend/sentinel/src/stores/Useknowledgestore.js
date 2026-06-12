@@ -22,7 +22,7 @@ export const useKnowledgeStore = create((set, get) => ({
       set({ isIngesting: false, ingestResult: data });
 
       get().fetchStatus();
-      get().fetchChunks();
+      get().fetchDocuments();;
     } catch (err) {
       set({ isIngesting: false, ingestError: err.message });
     }
@@ -58,26 +58,21 @@ export const useKnowledgeStore = create((set, get) => ({
   chunksError: null,
   uniqueSources: [],
 
-  fetchChunks: async (collection = "maintenance_manuals") => {
-    set({ chunksLoading: true, chunksError: null });
-    try {
-      const res = await fetch(`${BASE}/rag/chunks?collection=${collection}`);
-      if (!res.ok) throw new Error(`Chunks failed: ${res.status}`);
-      const data = await res.json();
-      const chunks = Array.isArray(data) ? data : (data.chunks ?? []);
-
-      // Extract unique PDF source filenames
-      const uniqueSources = [...new Set(chunks.map((c) => c.source).filter(Boolean))];
-
-      set({
-        chunksLoading: false,
-        chunks,
-        uniqueSources,
-      });
-    } catch (err) {
-      set({ chunksLoading: false, chunksError: err.message, uniqueSources: [] });
-    }
-  },
+  fetchDocuments: async () => {
+  set({ chunksLoading: true });
+  try {
+    const res = await fetch(`${BASE}/rag/documents`);
+    if (!res.ok) throw new Error(`Documents failed: ${res.status}`);
+    const data = await res.json();
+    set({
+      chunksLoading: false,
+      uniqueSources: data.documents.map(d => d.filename),
+      chunks: data.documents.map(d => ({ source: d.filename, ...d })),
+    });
+  } catch (err) {
+    set({ chunksLoading: false, chunksError: err.message });
+  }
+},
 
   // --- collections (GET /rag/collections) ---
   collections: [],

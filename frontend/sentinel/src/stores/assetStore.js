@@ -14,17 +14,27 @@ const useAssetStore = create((set) => ({
   loading: false,
   error: null,
 
-  fetchFactorySummary: async (status = null) => {
-    set({ loading: true, error: null });
-    try {
-      const res = await getFactorySummary(status);
-      set({ factorySummary: res.data });
-    } catch (err) {
-      set({ error: err.message });
-    } finally {
-      set({ loading: false });
+fetchFactorySummary: async (status = null) => {
+  set({ loading: true, error: null });
+  try {
+    const res = await getFactorySummary(status);
+    const data = res.data;
+
+    if (data?.machines_details) {
+      data.machines_details = data.machines_details.map((m) =>
+        m.status === 'Scheduled'
+          ? { ...m, status: 'Critical' }
+          : m
+      );
     }
-  },
+
+    set({ factorySummary: data });
+  } catch (err) {
+    set({ error: err.message });
+  } finally {
+    set({ loading: false });
+  }
+},
 
   fetchMachineDetails: async (machineId) => {
     set({ loading: true, error: null });
@@ -51,16 +61,17 @@ const useAssetStore = create((set) => ({
   },
 
   fetchAlerts: async (status = null) => {
-    set({ loading: true, error: null });
-    try {
-      const res = await getAlerts(status);
-      set({ alerts: res.data });
-    } catch (err) {
-      set({ error: err.message });
-    } finally {
-      set({ loading: false });
-    }
-  },
+  set({ loading: true, error: null });
+  try {
+    const res = await getAlerts(status);
+    const data = Array.isArray(res.data) ? res.data : [res.data];
+    set({ alerts: data }); // ← no filter here
+  } catch (err) {
+    set({ error: err.message });
+  } finally {
+    set({ loading: false });
+  }
+},
 }));
 
 export default useAssetStore;

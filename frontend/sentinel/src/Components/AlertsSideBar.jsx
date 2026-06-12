@@ -114,10 +114,6 @@ export default function AlertsSidebar() {
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
             Quick Actions
           </p>
-          <button className="w-full flex items-center justify-between p-3 rounded-2xl bg-primary text-white font-semibold text-sm hover:scale-[1.02] transition-transform">
-            Generate Diagnostic Report
-            <span className="material-icons-round text-lg">auto_awesome</span>
-          </button>
           <button className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-100 text-slate-600 font-semibold text-sm hover:bg-slate-200 transition-colors">
             Dismiss All Non-Critical
             <span className="material-icons-round text-lg">done_all</span>
@@ -125,22 +121,8 @@ export default function AlertsSidebar() {
         </div>
       </div>
 
-      <div className="bg-primary/5 rounded-3xl p-6 border border-primary/10">
-        <h4 className="text-sm font-bold mb-4">Maintenance Progress</h4>
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-16 h-16 rounded-full border-4 border-primary border-r-transparent flex items-center justify-center">
-            <span className="text-xs font-bold">72%</span>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Fleet Uptime Target</p>
-            <p className="text-sm font-bold">Ahead of schedule</p>
-          </div>
-        </div>
-        <button className="w-full py-2 bg-white rounded-xl text-xs font-bold text-primary border border-primary/20">
-          Schedule Inspections
-        </button>
-      </div>
       
+
     </div>
   );
 }

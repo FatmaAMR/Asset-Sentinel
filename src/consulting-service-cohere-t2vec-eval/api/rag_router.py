@@ -422,7 +422,91 @@ async def list_chunks(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
+@router.get("/documents")
+async def list_documents(
+    machine_id: str | None = Query(None, description="Omit for global PDF KB"),
+):
+    """
+    Return one entry per unique PDF ingested into the knowledge base.
+    Much lighter than /rag/chunks — no chunk text, just file metadata.
 
+    Response shape:
+      {
+        "collection": "maintenance_manuals",
+        "total_documents": 3,
+        "documents": [
+          {
+            "filename":    "20070034949.pdf",
+            "title":       "20070034949",
+            "chunk_count": 348,
+            "pages":       [1, 2, 3, ...],
+            "embed_type":  "pdf_cohere"
+          },
+          ...
+        ]
+      }
+    """
+    try:
+        if machine_id:
+            from db.chroma_client import get_chroma_collection
+            from services.embedder import PdfEmbedder as _PE
+            embedder = _PE(get_chroma_collection(f"pdf_{machine_id}"))
+        else:
+            embedder = get_pdf_embedder()
+
+        total = embedder.collection.count()
+        if total == 0:
+            return {
+                "collection":      embedder.collection.name,
+                "total_documents": 0,
+                "documents":       [],
+            }
+
+        # Fetch only metadata — no document text needed
+        raw  = embedder.collection.get(include=["metadatas"])
+        docs: dict[str, dict] = {}
+
+        for meta in raw.get("metadatas", []):
+            source     = meta.get("source", "")
+            page       = meta.get("page", 0)
+            embed_type = meta.get("embed_type", "")
+            if not source:
+                continue
+            if source not in docs:
+                docs[source] = {
+                    "filename":    source,
+                    "title":       source.replace(".pdf", "").replace("_", " "),
+                    "chunk_count": 0,
+                    "pages":       set(),
+                    "embed_type":  embed_type,
+                }
+            docs[source]["chunk_count"] += 1
+            docs[source]["pages"].add(page)
+
+        # Serialize sets to sorted lists
+        result = []
+        for d in docs.values():
+            result.append({
+                "filename":    d["filename"],
+                "title":       d["title"],
+                "chunk_count": d["chunk_count"],
+                "page_count":  len(d["pages"]),
+                "embed_type":  d["embed_type"],
+            })
+
+        # Sort by filename
+        result.sort(key=lambda x: x["filename"])
+
+        return {
+            "collection":      embedder.collection.name,
+            "total_documents": len(result),
+            "documents":       result,
+        }
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    
+    
 @router.get("/collections")
 async def get_collections():
     """Return all ChromaDB collection names (both PDF and sensor)."""

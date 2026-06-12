@@ -15,9 +15,10 @@ import Footer from "./Components/Footer";
 
 import Login from "./pages/Login";
 import DataExplorer from "./pages/DataExplorer"
-import Assets from "./pages/Assets";
+import Datasets from "./pages/Datasets";
 import Thresholds from "./pages/Thresholds";
 import useManagerialStore from "./stores/managerialStore";
+
 
 function ProtectedRoute({ children }) {
   const token = useManagerialStore((state) => state.token);
@@ -58,7 +59,7 @@ export default function App() {
         <Route path="/config" element={<Config />} />
         <Route path="/export" element={<ExportReport />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/assets" element={<ProtectedRoute><Assets /></ProtectedRoute>} />
+        <Route path="/datasets" element={<ProtectedRoute><Datasets /></ProtectedRoute>} />
         <Route path="/data-explorer" element={<DataExplorer/>} />
         <Route path="/thresholds" element={<ProtectedRoute><Thresholds /></ProtectedRoute>} />
       </Routes>

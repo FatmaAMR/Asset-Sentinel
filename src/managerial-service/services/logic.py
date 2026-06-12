@@ -1,119 +1,84 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
 from datetime import datetime
+from motor.motor_asyncio import AsyncIOMotorCollection
 import uuid
 
-# 1. استدعاء السكيما (Pydantic Models)
-from schemas.models import AssetCreate, AssetStatusEnum, StaffCreate, ThresholdRuleCreate
+from schemas.models import AssetCreate, StaffCreate, ThresholdRuleCreate
+from .security import get_password_hash, verify_password
+from db.models import STAFF_COLLECTION, ASSET_COLLECTION, THRESHOLD_COLLECTION
+from db.connection import get_collection
 
-# 2. استدعاء التشفير (بما إن logic و security في نفس فولدر services بنستخدم الـ dot)
-from .security import verify_password, get_password_hash
 
-# 3. استدعاء جداول الداتا بيز من المسار الجديد
-from db.models import DBAsset, DBStaff, DBThreshold
-# ==========================================
-# 1. Assets Logic
-# ==========================================
 class AssetLogic:
     @staticmethod
-    def add_new_asset(asset: AssetCreate, db: Session):
-        existing_asset = db.query(DBAsset).filter(DBAsset.asset_id == asset.asset_id).first()
-        if existing_asset:
-            raise HTTPException(status_code=400, detail="Asset ID already exists")
-        
-        new_asset = DBAsset(
-            asset_id=asset.asset_id,
-            machine_type=asset.machine_type,
-            location_floor=asset.location_floor,
-            location_section=asset.location_section,
-            specifications=asset.specifications,
-            status=asset.status.value if hasattr(asset.status, 'value') else asset.status
+    async def add_new_asset(asset: AssetCreate):
+        col = get_collection(ASSET_COLLECTION)
+        if await col.find_one({"asset_id": asset.asset_id}):
+            raise HTTPException(400, "Asset ID already exists")
+        doc = asset.dict()
+        doc["status"] = asset.status.value if hasattr(asset.status, "value") else asset.status
+        await col.insert_one(doc)
+        return doc
+
+    @staticmethod
+    async def list_all_assets():
+        col = get_collection(ASSET_COLLECTION)
+        return [a async for a in col.find({}, {"_id": 0})]
+
+    @staticmethod
+    async def get_asset(asset_id: str):
+        col = get_collection(ASSET_COLLECTION)
+        asset = await col.find_one({"asset_id": asset_id}, {"_id": 0})
+        if not asset:
+            raise HTTPException(404, "Asset not found")
+        return asset
+
+    @staticmethod
+    async def update_existing_asset(asset_id: str, asset_data: AssetCreate):
+        col = get_collection(ASSET_COLLECTION)
+        doc = asset_data.dict()
+        doc["status"] = asset_data.status.value if hasattr(asset_data.status, "value") else asset_data.status
+        result = await col.find_one_and_replace(
+            {"asset_id": asset_id}, doc, return_document=True
         )
-        db.add(new_asset)
-        db.commit()
-        db.refresh(new_asset)
-        return new_asset
+        if not result:
+            raise HTTPException(404, "Asset not found")
+        result.pop("_id", None)
+        return result
 
     @staticmethod
-    def list_all_assets(db: Session):
-        return db.query(DBAsset).all()
-
-    @staticmethod
-    def get_asset(asset_id: str, db: Session):
-        asset = db.query(DBAsset).filter(DBAsset.asset_id == asset_id).first()
-        if not asset:
-            raise HTTPException(status_code=404, detail="Asset not found")
-        return asset
-
-    @staticmethod
-    def update_existing_asset(asset_id: str, asset_data: AssetCreate, db: Session):
-        asset = db.query(DBAsset).filter(DBAsset.asset_id == asset_id).first()
-        if not asset:
-            raise HTTPException(status_code=404, detail="Asset not found")
-        
-        asset.machine_type = asset_data.machine_type
-        asset.location_floor = asset_data.location_floor
-        asset.location_section = asset_data.location_section
-        asset.specifications = asset_data.specifications
-        asset.status = asset_data.status.value if hasattr(asset_data.status, 'value') else asset_data.status
-        
-        db.commit()
-        db.refresh(asset)
-        return asset
-
-    @staticmethod
-    def remove_asset(asset_id: str, db: Session):
-        asset = db.query(DBAsset).filter(DBAsset.asset_id == asset_id).first()
-        if not asset:
-            raise HTTPException(status_code=404, detail="Asset not found")
-        
-        db.delete(asset)
-        db.commit()
+    async def remove_asset(asset_id: str):
+        col = get_collection(ASSET_COLLECTION)
+        result = await col.delete_one({"asset_id": asset_id})
+        if result.deleted_count == 0:
+            raise HTTPException(404, "Asset not found")
         return {"message": f"Asset {asset_id} deleted successfully"}
 
-# ==========================================
-# 2. Staff Logic
-# ==========================================
+
 class StaffLogic:
     @staticmethod
-    def add_staff(staff: StaffCreate, db: Session):
-        existing_user = db.query(DBStaff).filter(DBStaff.email == staff.email).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
-
-        # بنستخدم UUID عشان نضمن إن الـ ID مش هيتكرر حتى لو مسحنا موظفين
+    async def add_staff(staff: StaffCreate):
+        col = get_collection(STAFF_COLLECTION)
+        if await col.find_one({"email": staff.email}):
+            raise HTTPException(400, "Email already registered")
         new_id = f"EMP-{uuid.uuid4().hex[:4].upper()}"
-        
-        new_staff = DBStaff(
-            staff_id=new_id,
-            full_name=staff.full_name,
-            role=staff.role,
-            email=staff.email,
-            password=get_password_hash(staff.password),
-            created_at=datetime.utcnow().strftime("%Y-%m-%d")
-        )
-        db.add(new_staff)
-        db.commit()
-        db.refresh(new_staff)
-        return new_staff
+        doc = {
+            "staff_id":   new_id,
+            "full_name":  staff.full_name,
+            "role":       staff.role,
+            "email":      staff.email,
+            "password":   get_password_hash(staff.password),
+            "created_at": datetime.utcnow().strftime("%Y-%m-%d"),
+        }
+        await col.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
 
     @staticmethod
-    def change_staff_password(email: str, old_pw: str, new_pw: str, db: Session):
-        user = db.query(DBStaff).filter(DBStaff.email == email).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="Staff not found")
-
-        if not verify_password(old_pw, user.password):
-            raise HTTPException(status_code=400, detail="Incorrect old password")
-
-        user.password = get_password_hash(new_pw)
-        db.commit()
-        return {"message": "Password updated successfully"}
-
-    @staticmethod
-    def authenticate_user(email: str, password: str, db: Session):
-        user = db.query(DBStaff).filter(DBStaff.email == email).first()
-        if not user or not verify_password(password, user.password):
+    async def authenticate_user(email: str, password: str):
+        col = get_collection(STAFF_COLLECTION)
+        user = await col.find_one({"email": email}, {"_id": 0})
+        if not user or not verify_password(password, user["password"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -122,93 +87,108 @@ class StaffLogic:
         return user
 
     @staticmethod
-    def list_all_staff(db: Session):
-        return db.query(DBStaff).all()
+    async def list_all_staff():
+        col = get_collection(STAFF_COLLECTION)
+        return [s async for s in col.find({}, {"_id": 0, "password": 0})]
 
     @staticmethod
-    def get_staff_by_id(staff_id: str, db: Session):
-        user = db.query(DBStaff).filter(DBStaff.staff_id == staff_id).first()
+    async def get_staff_by_id(staff_id: str):
+        col = get_collection(STAFF_COLLECTION)
+        user = await col.find_one({"staff_id": staff_id}, {"_id": 0, "password": 0})
         if not user:
-            raise HTTPException(status_code=404, detail="Staff not found")
+            raise HTTPException(404, "Staff not found")
         return user
 
     @staticmethod
-    def update_staff(staff_id: str, staff_data: StaffCreate, db: Session):
-        user = db.query(DBStaff).filter(DBStaff.staff_id == staff_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="Staff not found")
-        
-        user.full_name = staff_data.full_name
-        user.role = staff_data.role
-        user.email = staff_data.email
-        user.password = get_password_hash(staff_data.password)
-        # created_at بيفضل زي ما هو مش بنعدله
-        
-        db.commit()
-        db.refresh(user)
-        return user
+    async def update_staff(staff_id: str, staff_data: StaffCreate):
+        col = get_collection(STAFF_COLLECTION)
+        update = {
+            "full_name": staff_data.full_name,
+            "role":      staff_data.role,
+            "email":     staff_data.email,
+            "password":  get_password_hash(staff_data.password),
+        }
+        result = await col.find_one_and_update(
+            {"staff_id": staff_id},
+            {"$set": update},
+            return_document=True,
+        )
+        if not result:
+            raise HTTPException(404, "Staff not found")
+        result.pop("_id", None)
+        result.pop("password", None)
+        return result
 
     @staticmethod
-    def remove_staff(staff_id: str, db: Session):
-        user = db.query(DBStaff).filter(DBStaff.staff_id == staff_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="Staff not found")
-        
-        db.delete(user)
-        db.commit()
+    async def remove_staff(staff_id: str):
+        col = get_collection(STAFF_COLLECTION)
+        result = await col.delete_one({"staff_id": staff_id})
+        if result.deleted_count == 0:
+            raise HTTPException(404, "Staff not found")
         return {"message": f"Staff {staff_id} deleted successfully"}
 
-# ==========================================
-# 3. Threshold Rules Logic
-# ==========================================
+    @staticmethod
+    async def change_staff_password(email: str, old_pw: str, new_pw: str):
+        col = get_collection(STAFF_COLLECTION)
+        user = await col.find_one({"email": email})
+        if not user:
+            raise HTTPException(404, "Staff not found")
+        if not verify_password(old_pw, user["password"]):
+            raise HTTPException(400, "Incorrect old password")
+        await col.update_one({"email": email}, {"$set": {"password": get_password_hash(new_pw)}})
+        return {"message": "Password updated successfully"}
+
+
 class ThresholdLogic:
     @staticmethod
-    def add_rule(rule: ThresholdRuleCreate, db: Session):
+    async def add_rule(rule: ThresholdRuleCreate):
+        col = get_collection(THRESHOLD_COLLECTION)
         rule_id = f"THR-{uuid.uuid4().hex[:4].upper()}"
-        new_rule = DBThreshold(
-            rule_id=rule_id,
-            machine_type=rule.machine_type,
-            warning_limit=rule.warning_limit,
-            critical_limit=rule.critical_limit,
-            updated_by_staff_id=rule.updated_by_staff_id
+        doc = {
+            "rule_id":              rule_id,
+            "machine_type":         rule.machine_type,
+            "warning_limit":        rule.warning_limit,
+            "critical_limit":       rule.critical_limit,
+            "updated_by_staff_id":  rule.updated_by_staff_id,
+        }
+        await col.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
+
+    @staticmethod
+    async def list_all_rules():
+        col = get_collection(THRESHOLD_COLLECTION)
+        return [r async for r in col.find({}, {"_id": 0})]
+
+    @staticmethod
+    async def get_rule_by_id(rule_id: str):
+        col = get_collection(THRESHOLD_COLLECTION)
+        rule = await col.find_one({"rule_id": rule_id}, {"_id": 0})
+        if not rule:
+            raise HTTPException(404, "Threshold rule not found")
+        return rule
+
+    @staticmethod
+    async def update_rule(rule_id: str, rule_data: ThresholdRuleCreate):
+        col = get_collection(THRESHOLD_COLLECTION)
+        update = {
+            "machine_type":        rule_data.machine_type,
+            "warning_limit":       rule_data.warning_limit,
+            "critical_limit":      rule_data.critical_limit,
+            "updated_by_staff_id": rule_data.updated_by_staff_id,
+        }
+        result = await col.find_one_and_update(
+            {"rule_id": rule_id}, {"$set": update}, return_document=True
         )
-        db.add(new_rule)
-        db.commit()
-        db.refresh(new_rule)
-        return new_rule
+        if not result:
+            raise HTTPException(404, "Threshold rule not found")
+        result.pop("_id", None)
+        return result
 
     @staticmethod
-    def list_all_rules(db: Session):
-        return db.query(DBThreshold).all()
-
-    @staticmethod
-    def get_rule_by_id(rule_id: str, db: Session):
-        rule = db.query(DBThreshold).filter(DBThreshold.rule_id == rule_id).first()
-        if not rule:
-            raise HTTPException(status_code=404, detail="Threshold rule not found")
-        return rule
-
-    @staticmethod
-    def update_rule(rule_id: str, rule_data: ThresholdRuleCreate, db: Session):
-        rule = db.query(DBThreshold).filter(DBThreshold.rule_id == rule_id).first()
-        if not rule:
-            raise HTTPException(status_code=404, detail="Threshold rule not found")
-        
-        rule.machine_type = rule_data.machine_type
-        rule.warning_limit = rule_data.warning_limit
-        rule.critical_limit = rule_data.critical_limit
-        rule.updated_by_staff_id = rule_data.updated_by_staff_id
-        
-        db.commit()
-        db.refresh(rule)
-        return rule
-
-    @staticmethod
-    def delete_rule(rule_id: str, db: Session):
-        rule = db.query(DBThreshold).filter(DBThreshold.rule_id == rule_id).first()
-        if not rule:
-            raise HTTPException(status_code=404, detail="Threshold rule not found")
-        
-        db.delete(rule)
-        db.commit()
+    async def delete_rule(rule_id: str):
+        col = get_collection(THRESHOLD_COLLECTION)
+        result = await col.delete_one({"rule_id": rule_id})
+        if result.deleted_count == 0:
+            raise HTTPException(404, "Threshold rule not found")
         return {"message": f"Threshold rule {rule_id} deleted successfully"}

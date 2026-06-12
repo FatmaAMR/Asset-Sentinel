@@ -36,6 +36,7 @@ export default function DiagnosisPanel() {
     machineId,
     setMachineId,
     fetchNotifications,
+    clearNotifications,
     askConsulting,
     machineQuery,
   } = useConsultingStore();
@@ -64,8 +65,21 @@ export default function DiagnosisPanel() {
   const handleMachineChange = () => {
     const trimmed = machineInput.trim();
     if (!trimmed || trimmed === machineId) return;
-    setMachineId(trimmed);
+    // Wipe all state before switching machines
+    useConsultingStore.setState({
+      notifications:      [],
+      unreadCount:        0,
+      rawAnswer:          null,
+      rootCause:          null,
+      recommendations:    [],
+      citation:           null,
+      sources:            [],
+      error:              null,
+      notificationsError: null,
+    });
     setChatHistory([]);
+    setMachineId(trimmed);
+    
   };
 
   // ── Chat / quick actions ───────────────────────────────────────────────
@@ -106,12 +120,20 @@ export default function DiagnosisPanel() {
   // ── Display values ─────────────────────────────────────────────────────
   const isActuallyLoading = isLoading || notificationsLoading;
 
+  const latestExtractedReason = latestNotif?.extracted_reason || "";
+  const latestFaultCause      = latestNotif?.fault_cause || "";
+
   const displayRootCause =
-    rootCause || "Awaiting Sentinel AI diagnosis...";
+    latestExtractedReason || rootCause || "Awaiting Sentinel AI diagnosis...";
+
+  const displayFaultCause =
+    latestFaultCause || recommendations[0] || "Awaiting diagnosis...";
 
   const displayRecommendations =
     recommendations.length > 0
       ? recommendations
+      : latestFaultCause
+      ? [latestFaultCause]
       : [
           "Immediate reduction of turbine load to 60% capacity.",
           "Inspect lubricant for metallic particulates (Wear Debris Analysis).",
@@ -195,9 +217,18 @@ export default function DiagnosisPanel() {
             Apply
           </button>
           {notifications.length > 0 && (
-            <span className="px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold whitespace-nowrap">
-              {notifications.length} event{notifications.length !== 1 ? "s" : ""}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold whitespace-nowrap">
+                {notifications.length} event{notifications.length !== 1 ? "s" : ""}
+              </span>
+              <button
+                onClick={clearNotifications}
+                title="Clear notifications"
+                className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-red-100 hover:text-red-500 text-slate-500 transition-colors text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
           )}
         </div>
 
@@ -231,7 +262,7 @@ export default function DiagnosisPanel() {
               </div>
             ) : (
               <p className="text-lg font-semibold leading-relaxed">
-                {displayRecommendations[0] || "Run a diagnosis to assess urgency."}
+                {displayFaultCause}
               </p>
             )}
           </div>
@@ -283,7 +314,7 @@ export default function DiagnosisPanel() {
                 <>
                   <h4 className="text-sm font-bold mb-1">{citation.title}</h4>
                   <p className="text-xs text-slate-500 leading-relaxed italic">
-                    "{citation.text}..."
+                    &quot;{citation.text}...&quot;
                   </p>
                 </>
               ) : latestNotif ? (
@@ -292,7 +323,7 @@ export default function DiagnosisPanel() {
                     Event ID: {latestNotif.message_id?.slice(0, 8)}…
                   </h4>
                   <p className="text-xs text-slate-500 leading-relaxed italic">
-                    "{latestNotif.fault_cause?.slice(0, 220)}..."
+                    &quot;{latestNotif.fault_cause?.slice(0, 220)}...&quot;
                   </p>
                 </>
               ) : (
@@ -301,9 +332,9 @@ export default function DiagnosisPanel() {
                     Citing: SKF Rolling Bearing Manual Sec. 7.4
                   </h4>
                   <p className="text-xs text-slate-500 leading-relaxed italic">
-                    "Vibration signatures exhibiting high-frequency modulation at
+                    &quot;Vibration signatures exhibiting high-frequency modulation at
                     the Ball Pass Frequency Inner race (BPFI) typically indicate
-                    fatigue spalling..."
+                    fatigue spalling...&quot;
                   </p>
                 </>
               )}

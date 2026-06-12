@@ -2,40 +2,32 @@ import { useEffect, useState } from "react";
 import { useKnowledgeStore } from "../../stores/useKnowledgeStore";
 import { useConsultingStore } from "../../stores/useConsultingStore";
 
+const PRIORITY_COLLECTIONS = ["maintenance_manuals", "sensor_string", "sensor pdf", "sensor maintenance manuals"];
+
+function formatName(name) {
+  return name.replace(/_/g, " ").replace(/\bpdf\b/gi, "PDF");
+}
+
 export default function ContextExplorer() {
   const {
-    fetchStatus,
-    fetchCollections,
-    fetchChunks,
-    totalChunks,
-    isReady,
-    collections,
-    collectionsLoading,
-    chunks,
-    chunksLoading,
-    uniqueSources,
+    fetchStatus, fetchCollections, fetchDocuments,
+    totalChunks, isReady, collections, collectionsLoading,
+    chunks, chunksLoading, uniqueSources,
   } = useKnowledgeStore();
 
-  const {
-    askConsulting,
-    isLoading,
-    rawAnswer,
-    sources,
-    error,
-    clearDiagnosis,
-  } = useConsultingStore();
+  const { askConsulting, isLoading, rawAnswer, sources, error, clearDiagnosis } = useConsultingStore();
 
   const [input, setInput] = useState("");
   const [question, setQuestion] = useState("");
   const [selectedCollection, setSelectedCollection] = useState(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     fetchStatus();
     fetchCollections();
-    fetchChunks("maintenance_manuals");
+    fetchDocuments();
   }, []);
 
-  // When collections load, auto-select first
   useEffect(() => {
     if (collections.length > 0 && !selectedCollection) {
       const first = typeof collections[0] === "string" ? collections[0] : collections[0].name;
@@ -45,7 +37,7 @@ export default function ContextExplorer() {
 
   const handleSelectCollection = (name) => {
     setSelectedCollection(name);
-    fetchChunks(name);
+    fetchDocuments();
   };
 
   const handleAsk = async (e) => {
@@ -55,14 +47,16 @@ export default function ContextExplorer() {
     await askConsulting(input.trim(), 4);
     setInput("");
   };
-  
+
+  const allNames = collections.map((c) => (typeof c === "string" ? c : c.name));
+  const visibleCollections = allNames.filter((n) => n === "maintenance_manuals");
+  const sensorNames = [];
 
   return (
     <section className="bg-primary text-white rounded-[2.5rem] p-8 h-full relative overflow-hidden shadow-2xl shadow-primary/20">
       <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
 
       <div className="relative z-10 flex flex-col h-full gap-6">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
             <span className="material-symbols-rounded">hub</span>
@@ -75,12 +69,10 @@ export default function ContextExplorer() {
           documentation for local inference.
         </p>
 
-        {/* Collection selector pills */}
         {!collectionsLoading && collections.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {collections.map((col) => {
-              const name = typeof col === "string" ? col : col.name;
-              return (
+          <div>
+            <div className="flex flex-wrap gap-2">
+              {visibleCollections.map((name) => (
                 <button
                   key={name}
                   onClick={() => handleSelectCollection(name)}
@@ -90,14 +82,22 @@ export default function ContextExplorer() {
                       : "bg-white/10 text-white/70 border-white/20 hover:bg-white/20"
                   }`}
                 >
-                  {name.replace(/_/g, " ")}
+                  {formatName(name)}
                 </button>
-              );
-            })}
+              ))}
+
+              {sensorNames.length > 0 && (
+                <button
+                  onClick={() => setShowAll((v) => !v)}
+                  className="text-[10px] font-bold px-3 py-1 rounded-full border border-white/20 bg-white/5 text-white/50 hover:bg-white/10 transition-all"
+                >
+                  {showAll ? "Show less ▲" : `+${sensorNames.length} machines ▼`}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* PDF document cards derived from chunk sources */}
         <div className="space-y-3">
           {chunksLoading ? (
             <div className="space-y-2">
@@ -151,7 +151,6 @@ export default function ContextExplorer() {
           )}
         </div>
 
-        {/* Ask input */}
         <form onSubmit={handleAsk} className="flex gap-2">
           <input
             type="text"
@@ -172,7 +171,6 @@ export default function ContextExplorer() {
           </button>
         </form>
 
-        {/* Answer */}
         {(rawAnswer || error) && (
           <div className="bg-white/10 border border-white/20 rounded-2xl p-4 text-sm space-y-3">
             {error ? (
@@ -188,21 +186,16 @@ export default function ContextExplorer() {
                   </p>
                 )}
                 <p className="text-white leading-relaxed">{rawAnswer}</p>
-
                 {sources?.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1 border-t border-white/10">
                     {sources.map((s, i) => (
-                      <span
-                        key={i}
-                        className="text-[10px] font-bold bg-white/10 border border-white/20 px-2 py-0.5 rounded-full flex items-center gap-1"
-                      >
+                      <span key={i} className="text-[10px] font-bold bg-white/10 border border-white/20 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <span className="material-symbols-rounded text-[10px]">description</span>
                         {typeof s === "string" ? s : (s.source ?? s.file ?? `Source ${i + 1}`)}
                       </span>
                     ))}
                   </div>
                 )}
-
                 <button
                   onClick={() => { clearDiagnosis(); setQuestion(""); }}
                   className="text-white/40 hover:text-white/80 text-[11px] flex items-center gap-1 transition"
@@ -215,23 +208,16 @@ export default function ContextExplorer() {
           </div>
         )}
 
-        {/* Bottom card */}
         <div className="mt-auto bg-white rounded-[1.5rem] p-6 text-slate-900">
           <h4 className="font-bold mb-1">Indexing Efficiency</h4>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-3xl font-display font-extrabold text-primary">
-              98.4%
-            </span>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-              +2.1%
-            </span>
+            <span className="text-3xl font-display font-extrabold text-primary">98.4%</span>
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+2.1%</span>
           </div>
           {totalChunks != null && (
             <p className="text-[11px] text-slate-500 font-medium mb-1">
               <span className="font-bold text-slate-700">{totalChunks.toLocaleString()}</span> chunks indexed
-              {isReady && (
-                <span className="ml-2 text-emerald-600 font-bold">● Live</span>
-              )}
+              {isReady && <span className="ml-2 text-emerald-600 font-bold">● Live</span>}
             </p>
           )}
           <p className="text-[11px] text-slate-500 font-medium">

@@ -102,7 +102,7 @@ export default function VibrationStream() {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2 tracking-tight text-light">
             <span className="w-2.5 h-2.5 bg-failure rounded-full animate-pulse" />
-            Live Vibration Stream
+            Live Sensor Stream
           </h2>
           <p className="text-muted text-xs mt-0.5">
             Real-time spectral analysis for{' '}

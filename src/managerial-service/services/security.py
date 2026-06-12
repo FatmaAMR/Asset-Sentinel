@@ -2,22 +2,16 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from datetime import datetime, timedelta 
+from datetime import datetime, timedelta
 from typing import Optional
 
-# ==========================================
-# التعديلات الجديدة بعد نقل ملفات الداتا بيز
-# ==========================================
-from sqlalchemy.orm import Session
-from db.connection import get_db  # عشان نفتح سيشن وندور في الداتا بيز
-from db.models import DBStaff     # الموديل بتاع الموظفين عشان نتأكد إن اليوزر موجود
-# from schemas.models import TokenData  # (لو إنت عامل سكيما للتوكن داتا شيل الـ # من هنا)
 SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/managerial/auth/login")
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -30,7 +24,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# ── decode الـ JWT ──
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -43,11 +36,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         role: str = payload.get("role")
         if email is None:
             raise credentials_exception
-        return {"email": email, "role": role}  # رجّع email مش sub
+        return {"email": email, "role": role}
     except JWTError:
         raise credentials_exception
 
-# ── Role-Based Authorization ──
 def require_role(*allowed_roles: str):
     async def role_checker(current_user: dict = Depends(get_current_user)):
         if current_user["role"] not in allowed_roles:

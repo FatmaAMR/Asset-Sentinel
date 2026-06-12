@@ -2,23 +2,27 @@ import { useEffect } from 'react';
 import useAssetStore from '../stores/assetStore';
 
 export default function StatusCards() {
-  const { factorySummary, loading, fetchFactorySummary } = useAssetStore();
+  const { factorySummary, alerts, loading, fetchFactorySummary, fetchAlerts } = useAssetStore();
 
   useEffect(() => {
     fetchFactorySummary();
+    fetchAlerts();
   }, []);
 
   const activeSensors = factorySummary?.active_sensors ?? null;
-
-  // Compute sensor health % — what % of sensor readings are from non-critical machines
   const totalMachines = factorySummary?.total_machines ?? 0;
-  const criticalMachines = factorySummary?.critical_machines_count ?? 0;
+
+  // Count alerts where should_alert is true
+  const criticalCount = alerts.filter((a) =>
+  ['Critical', 'Warning', 'Scheduled'].includes(a.severity)
+).length;
   const healthPct = totalMachines > 0
-    ? Math.round(((totalMachines - criticalMachines) / totalMachines) * 100)
+    ? Math.round(((totalMachines - criticalCount) / totalMachines) * 100)
     : 94;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+
       {/* Total Fleet Assets */}
       <div className="bg-primary p-6 rounded-3xl text-white shadow-xl relative overflow-hidden group">
         <div className="relative z-10">
@@ -44,24 +48,22 @@ export default function StatusCards() {
             <span className="w-2 h-2 rounded-full bg-failure animate-ping" />
           </div>
           <h3 className="text-4xl font-bold text-failure">
-            {loading
-              ? '...'
-              : String(factorySummary?.critical_machines_count ?? '—').padStart(1, '0')}
+            {loading ? '...' : String(criticalCount).padStart(1, '0')}
           </h3>
         </div>
         <p className="text-xs text-slate-400 mt-4 italic">ISO 10816 Breach detected</p>
       </div>
 
-      {/* Active Sensors — live from API */}
+      {/* Active Sensors */}
       <div className="bg-cards-light p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
         <div>
-          <p className="text-slate-500 text-sm font-medium mb-2">Active Sensors</p>
+          <p className="text-slate-500 text-sm font-medium mb-2"> Active Sensors</p>
           <h3 className="text-4xl font-bold text-slate-800">
             {loading
               ? '...'
               : activeSensors != null
-              ? activeSensors.toLocaleString()
-              : '—'}
+                ? activeSensors.toLocaleString()
+                : '—'}
           </h3>
         </div>
         <div className="w-full bg-gray-100 h-1.5 rounded-full mt-4 overflow-hidden">
@@ -77,9 +79,9 @@ export default function StatusCards() {
       <div className="bg-cards-light p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
         <div>
           <p className="text-slate-500 text-sm font-medium mb-2">AI Diagnostic Accuracy</p>
-          <h3 className="text-4xl font-bold text-primary">99.8%</h3>
+          <h3 className="text-4xl font-bold text-primary">96.5%</h3>
         </div>
-        <p className="text-xs text-slate-400 mt-4">Local Llama-3-70B Active</p>
+
       </div>
 
     </div>
